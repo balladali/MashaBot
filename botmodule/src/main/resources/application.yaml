@@ -1,0 +1,4 @@
+credential:
+  telegram:
+    login: ${TG_BOT_NAME:}
+    token: ${TG_BOT_TOKEN:}
