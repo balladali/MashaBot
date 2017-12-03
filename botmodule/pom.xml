@@ -17,13 +17,6 @@
         <java.version>1.8</java.version>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>jitpack.io</id>
-            <url>https://jitpack.io</url>
-        </repository>
-    </repositories>
-
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -48,11 +41,6 @@
             <artifactId>hibernate-validator-annotation-processor</artifactId>
             <version>4.1.0.Final</version>
         </dependency>
-        <!--<dependency>-->
-            <!--<groupId>com.github.rubenlagus</groupId>-->
-            <!--<artifactId>TelegramBots</artifactId>-->
-            <!--<version>v2.3.3.4</version>-->
-        <!--</dependency>-->
         <dependency>
             <groupId>commons-lang</groupId>
             <artifactId>commons-lang</artifactId>
