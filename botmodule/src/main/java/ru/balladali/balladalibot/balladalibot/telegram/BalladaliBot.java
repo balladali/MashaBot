@@ -1,7 +1,12 @@
 package ru.balladali.balladalibot.balladalibot.telegram;
 
+import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.TelegramBotsApi;
 import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.Message;
@@ -30,7 +35,30 @@ public class BalladaliBot extends TelegramLongPollingBot {
             if (!"/start".equals(messageText)) {
                 long chatId = update.getMessage().getChatId();
 
-                SendMessage sendMessage = new SendMessage(chatId, messageText);
+                String url = "http://p-bot.ru/api/getAnswer";
+
+                RestTemplate restTemplate = new RestTemplate();
+
+                HttpHeaders headers = new HttpHeaders();
+                headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+                MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
+                map.add("request", messageText);
+                map.add("a", "public-api");
+                map.add("b", "123");
+                map.add("c", "1946969405");
+                map.add("d", "123");
+                map.add("e", "123");
+                map.add("t", "1512326384880");
+                map.add("x", "123");
+
+                HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
+
+                ResponseEntity<String> response = restTemplate.postForEntity( url, request , String.class );
+                String content = response.getBody();
+                JSONObject json = new JSONObject(content);
+
+                SendMessage sendMessage = new SendMessage(chatId, json.getString("answer"));
                 try {
                     execute(sendMessage);
                 } catch (TelegramApiException e) {
