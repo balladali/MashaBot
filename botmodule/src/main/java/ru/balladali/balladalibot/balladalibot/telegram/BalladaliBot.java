@@ -38,36 +38,8 @@ public class BalladaliBot extends TelegramLongPollingBot {
         Message message = update.getMessage();
         if (message != null) {
             MessageEntity messageEntity = new TelegramMessage(message);
-
-//            String messageText = message.getText();
-//            if (!"/start".equals(messageText)) {
             String answer = messageHandler.answer(messageEntity);
             if (answer != null) {
-//                long chatId = update.getMessage().getChatId();
-//
-//                String url = "http://p-bot.ru/api/getAnswer";
-//
-//                RestTemplate restTemplate = new RestTemplate();
-//
-//                HttpHeaders headers = new HttpHeaders();
-//                headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-//
-//                MultiValueMap<String, String> map= new LinkedMultiValueMap<String, String>();
-//                map.add("request", messageText);
-//                map.add("a", "public-api");
-//                map.add("b", "123");
-//                map.add("c", "1946969405");
-//                map.add("d", "123");
-//                map.add("e", "123");
-//                map.add("t", "1512326384880");
-//                map.add("x", "123");
-//
-//                HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(map, headers);
-//
-//                ResponseEntity<String> response = restTemplate.postForEntity( url, request , String.class );
-//                String content = response.getBody();
-//                JSONObject json = new JSONObject(content);
-
                 SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
                 try {
                     execute(sendMessage);
@@ -75,7 +47,6 @@ public class BalladaliBot extends TelegramLongPollingBot {
                     e.printStackTrace();
                 }
             }
-//            }
         }
     }
 

@@ -11,6 +11,11 @@ import org.springframework.web.client.RestTemplate;
 import ru.balladali.balladalibot.balladalibot.core.MessageEntity;
 import ru.balladali.balladalibot.balladalibot.core.MessageHandler;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Random;
+
 public class ConversationHandler implements MessageHandler {
 
     private final String ANSWER_URL = "http://p-bot.ru/api/getAnswer";
@@ -23,48 +28,69 @@ public class ConversationHandler implements MessageHandler {
         String message = entity.getText();
         if (needAnswer(message)) {
             message = message.replaceAll("Маша, ", "").replaceAll("маша, ", "");
-            RestTemplate restTemplate = new RestTemplate();
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-//            headers.set("Host","p-bot.ru");
-//            headers.set("Origin", "http://p-bot.ru");
-//            headers.set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/62.0.3202.94 Safari/537.36");
-//            headers.set("Accept","*/*");
-//            headers.set("Referer", "http://p-bot.ru/");
-//            headers.set("Cookie", "dialog_id=f757e541-58a2-4641-9075-7798df4a1260; last_visit=1512564587730::1512578987730; dialog_sentiment=1");
-
-            MultiValueMap<String, String> parameters = new LinkedMultiValueMap<String, String>();
-            parameters.add("request", message);
-//            parameters.add("request_1", "");
-//            parameters.add("answer_1", "");
-//        parameters.add("request_2", "");
-//        parameters.add("answer_2", "");
-//        parameters.add("request_3", "");
-//        parameters.add("answer_3", "");
-            parameters.add("user_name", USER_NAME);
-            parameters.add("bot_name", "pBot");
-            parameters.add("dialog_lang", "ru");
-            parameters.add("dialog_id", "f757e541-58a2-4641-9075-7798df4a1260");
-            parameters.add("dialog_greeting", "false");
-            parameters.add("a", PUBLIC_API);
-            parameters.add("b", "3711164143");
-            parameters.add("c", "3329552147");
-            parameters.add("d", "877689818");
-            parameters.add("e", "0.5342009719764045");
-            parameters.add("t", "1512583469595");
-            parameters.add("x", "9.891452256115041");
-
-            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(parameters, headers);
-
-            ResponseEntity<String> response = restTemplate.postForEntity(ANSWER_URL, request, String.class);
-            String content = response.getBody();
-            JSONObject json = new JSONObject(content);
-            return json.getString(ANSWER_FIELD);
+            return getAnswer(message);
         }
         return null;
     }
 
     private boolean needAnswer(String message) {
         return message.contains("Маша") || message.contains("маша");
+    }
+
+    private String getAnswer(String message) {
+        RestTemplate restTemplate = new RestTemplate();
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        long timestamp = System.currentTimeMillis();
+        Random rand = new Random();
+
+        MultiValueMap<String, String> parameters = new LinkedMultiValueMap<String, String>();
+        parameters.add("request", message);
+        parameters.add("user_name", USER_NAME);
+        parameters.add("bot_name", "pBot");
+        parameters.add("dialog_lang", "ru");
+//            parameters.add("dialog_id", "f757e541-58a2-4641-9075-7798df4a1260");
+//            parameters.add("dialog_greeting", "false");
+        parameters.add("a", PUBLIC_API);
+        parameters.add("b", String.valueOf(Integer.toUnsignedLong(crc(timestamp + "b"))));
+        parameters.add("c", String.valueOf(Integer.toUnsignedLong(getSign(timestamp))));
+        parameters.add("d", String.valueOf(Integer.toUnsignedLong(crc(System.currentTimeMillis() + "d"))));
+        parameters.add("e", String.format(Locale.ENGLISH, "%.15f", rand.nextFloat()));
+        parameters.add("t", String.valueOf(timestamp));
+        parameters.add("x", String.format(Locale.ENGLISH, "%.15f", rand.nextFloat() * 0xa));
+
+        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(parameters, headers);
+
+        ResponseEntity<String> response = restTemplate.postForEntity(ANSWER_URL, request, String.class);
+        String content = response.getBody();
+        JSONObject json = new JSONObject(content);
+        return json.getString(ANSWER_FIELD);
+    }
+
+    private int crc(String param) {
+        List<Integer> b = abc();
+        int c = -0x1;
+        for (int k = 0; k < param.length(); k++) {
+            c = c >>> 0x8 ^ b.get((c ^ param.charAt(k)) & 0xff);
+        }
+        return ~c;
+    }
+
+    private List<Integer> abc() {
+        int a;
+        List<Integer> result = new ArrayList<>();
+        for (int i = 0; i < 256; i++) {
+            a = i;
+            for (int j = 0; j < 8; j++) {
+                a = (a & 0x1) == 1 ? 0xedb88320 ^ a >>> 0x1 : a >>> 0x1;
+            }
+            result.add(a);
+        }
+        return result;
+    }
+
+    private int getSign(long param) {
+        return crc("public-api" + param + "4c153765f54c31ff" + "aa63c7fbf560553f5e3f428e877e2b0f");
     }
 }
