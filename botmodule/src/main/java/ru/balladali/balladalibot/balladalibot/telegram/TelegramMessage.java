@@ -1,7 +1,7 @@
 package ru.balladali.balladalibot.balladalibot.telegram;
 
 import org.telegram.telegrambots.api.objects.Message;
-import ru.balladali.balladalibot.balladalibot.core.MessageEntity;
+import ru.balladali.balladalibot.balladalibot.core.entity.MessageEntity;
 
 public class TelegramMessage implements MessageEntity {
 

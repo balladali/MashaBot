@@ -1,13 +1,8 @@
 package ru.balladali.balladalibot.balladalibot.telegram;
 
-import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.*;
 import org.springframework.stereotype.Component;
-import org.springframework.util.LinkedMultiValueMap;
-import org.springframework.util.MultiValueMap;
-import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.TelegramBotsApi;
 import org.telegram.telegrambots.api.methods.send.SendMessage;
 import org.telegram.telegrambots.api.objects.Message;
@@ -15,7 +10,7 @@ import org.telegram.telegrambots.api.objects.Update;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
 import org.telegram.telegrambots.exceptions.TelegramApiException;
 import org.telegram.telegrambots.exceptions.TelegramApiRequestException;
-import ru.balladali.balladalibot.balladalibot.core.MessageEntity;
+import ru.balladali.balladalibot.balladalibot.core.entity.MessageEntity;
 import ru.balladali.balladalibot.balladalibot.core.MessageHandler;
 
 import javax.annotation.PostConstruct;

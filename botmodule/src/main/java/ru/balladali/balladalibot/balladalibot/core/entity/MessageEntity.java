@@ -1,4 +1,4 @@
-package ru.balladali.balladalibot.balladalibot.core;
+package ru.balladali.balladalibot.balladalibot.core.entity;
 
 public interface MessageEntity {
     String getText();

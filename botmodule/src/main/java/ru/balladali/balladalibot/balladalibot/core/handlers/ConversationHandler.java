@@ -8,13 +8,11 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
-import ru.balladali.balladalibot.balladalibot.core.MessageEntity;
+import ru.balladali.balladalibot.balladalibot.core.entity.BotContext;
+import ru.balladali.balladalibot.balladalibot.core.entity.MessageEntity;
 import ru.balladali.balladalibot.balladalibot.core.MessageHandler;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Random;
+import java.util.*;
 
 public class ConversationHandler implements MessageHandler {
 
@@ -23,12 +21,15 @@ public class ConversationHandler implements MessageHandler {
     private final String USER_NAME = "Masha";
     private final String ANSWER_FIELD = "answer";
 
+    private Map<String, BotContext> contextMap = new HashMap<>();
+
     @Override
     public String answer(MessageEntity entity) {
         String message = entity.getText();
+        String chatId = entity.getChatId();
         if (needAnswer(message)) {
             message = message.replaceAll("Маша, ", "").replaceAll("маша, ", "");
-            return getAnswer(message);
+            return getAnswer(message, chatId);
         }
         return null;
     }
@@ -37,7 +38,14 @@ public class ConversationHandler implements MessageHandler {
         return message.contains("Маша") || message.contains("маша");
     }
 
-    private String getAnswer(String message) {
+    private String getAnswer(String message, String chatId) {
+        BotContext botContext = null;
+        if (!contextMap.containsKey(chatId)) {
+            botContext = BotContext.builder().build();
+            contextMap.put(chatId, botContext);
+        } else {
+            botContext = contextMap.get(chatId);
+        }
         RestTemplate restTemplate = new RestTemplate();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -47,11 +55,15 @@ public class ConversationHandler implements MessageHandler {
 
         MultiValueMap<String, String> parameters = new LinkedMultiValueMap<String, String>();
         parameters.add("request", message);
+        parameters.add("request_1", botContext.getRequest1());
+        parameters.add("answer_1", botContext.getAnswer1());
+        parameters.add("request_2", botContext.getRequest2());
+        parameters.add("answer_2", botContext.getAnswer2());
+        parameters.add("request_3", botContext.getRequest3());
+        parameters.add("answer_3", botContext.getAnswer3());
         parameters.add("user_name", USER_NAME);
         parameters.add("bot_name", "pBot");
         parameters.add("dialog_lang", "ru");
-//            parameters.add("dialog_id", "f757e541-58a2-4641-9075-7798df4a1260");
-//            parameters.add("dialog_greeting", "false");
         parameters.add("a", PUBLIC_API);
         parameters.add("b", String.valueOf(Integer.toUnsignedLong(crc(timestamp + "b"))));
         parameters.add("c", String.valueOf(Integer.toUnsignedLong(getSign(timestamp))));
@@ -65,7 +77,10 @@ public class ConversationHandler implements MessageHandler {
         ResponseEntity<String> response = restTemplate.postForEntity(ANSWER_URL, request, String.class);
         String content = response.getBody();
         JSONObject json = new JSONObject(content);
-        return json.getString(ANSWER_FIELD);
+        String answer = json.getString(ANSWER_FIELD);
+        updateContext(botContext, message, answer);
+        contextMap.put(chatId, botContext);
+        return answer;
     }
 
     private int crc(String param) {
@@ -92,5 +107,15 @@ public class ConversationHandler implements MessageHandler {
 
     private int getSign(long param) {
         return crc("public-api" + param + "4c153765f54c31ff" + "aa63c7fbf560553f5e3f428e877e2b0f");
+    }
+
+    private void updateContext(BotContext context, String request, String answer) {
+        context.setRequest3(context.getRequest2());
+        context.setRequest2(context.getRequest1());
+        context.setRequest1(request);
+
+        context.setAnswer3(context.getAnswer2());
+        context.setAnswer2(context.getAnswer1());
+        context.setAnswer1(answer);
     }
 }
