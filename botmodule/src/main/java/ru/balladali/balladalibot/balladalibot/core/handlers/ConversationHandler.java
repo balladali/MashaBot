@@ -106,7 +106,7 @@ public class ConversationHandler implements MessageHandler {
     }
 
     private int getSign(long param) {
-        return crc("public-api" + param + "4c153765f54c31ff" + "aa63c7fbf560553f5e3f428e877e2b0f");
+        return crc("public-api" + param + "WxvttruvF01cvHy8" + "8r5yD8pl8lLcz20G" + "8dY72lsSOvXnJF4T");
     }
 
     private void updateContext(BotContext context, String request, String answer) {
