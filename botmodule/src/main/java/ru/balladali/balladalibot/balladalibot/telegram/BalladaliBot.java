@@ -15,6 +15,7 @@ import ru.balladali.balladalibot.balladalibot.core.MessageHandler;
 
 import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
+import java.util.List;
 
 @Component
 public class BalladaliBot extends TelegramLongPollingBot {
@@ -26,20 +27,23 @@ public class BalladaliBot extends TelegramLongPollingBot {
     private String botToken;
 
     @Autowired
-    MessageHandler messageHandler;
+    List<MessageHandler> messageHandlers;
 
     @Override
     public void onUpdateReceived(Update update) {
         Message message = update.getMessage();
         if (message != null) {
             MessageEntity messageEntity = new TelegramMessage(message);
-            String answer = messageHandler.answer(messageEntity);
-            if (answer != null) {
-                SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
-                try {
-                    execute(sendMessage);
-                } catch (TelegramApiException e) {
-                    e.printStackTrace();
+            for (MessageHandler messageHandler: messageHandlers) {
+                String answer = messageHandler.answer(messageEntity);
+                if (answer != null) {
+                    SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
+                    try {
+                        execute(sendMessage);
+                        return;
+                    } catch (TelegramApiException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }

@@ -52,6 +52,11 @@
             <version>1.16.16</version>
             <scope>provided</scope>
         </dependency>
+        <dependency>
+            <groupId>com.google.apis</groupId>
+            <artifactId>google-api-services-youtube</artifactId>
+            <version>v3-rev192-1.23.0</version>
+        </dependency>
     </dependencies>
 
     <build>
