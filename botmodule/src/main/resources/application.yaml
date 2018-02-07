@@ -5,3 +5,5 @@ credential:
   telegram:
     login: ${TG_BOT_NAME:}
     token: ${TG_BOT_TOKEN:}
+  youtube:
+    key: ${YOUTUBE_API_KEY:}
