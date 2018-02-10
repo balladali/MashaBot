@@ -57,6 +57,11 @@
             <artifactId>google-api-services-youtube</artifactId>
             <version>v3-rev192-1.23.0</version>
         </dependency>
+        <dependency>
+            <groupId>joda-time</groupId>
+            <artifactId>joda-time</artifactId>
+            <version>2.9.9</version>
+        </dependency>
     </dependencies>
 
     <build>

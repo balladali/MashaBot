@@ -1,5 +1,6 @@
-package ru.balladali.balladalibot.balladalibot.core.handlers;
+package ru.balladali.balladalibot.balladalibot.core.handlers.message;
 
+import org.apache.commons.lang.StringUtils;
 import org.json.JSONObject;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
@@ -10,7 +11,6 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import ru.balladali.balladalibot.balladalibot.core.entity.BotContext;
 import ru.balladali.balladalibot.balladalibot.core.entity.MessageEntity;
-import ru.balladali.balladalibot.balladalibot.core.MessageHandler;
 
 import java.util.*;
 
@@ -28,14 +28,15 @@ public class ConversationHandler implements MessageHandler {
         String message = entity.getText();
         String chatId = entity.getChatId();
         if (needAnswer(message)) {
-            message = message.replaceAll("Маша, ", "").replaceAll("маша, ", "");
+            message = message.replaceAll("Маша,", "").replaceAll("маша,", "").trim();
             return getAnswer(message, chatId);
         }
         return null;
     }
 
-    private boolean needAnswer(String message) {
-        return message.contains("Маша") || message.contains("маша");
+    @Override
+    public boolean needAnswer(String message) {
+        return StringUtils.containsIgnoreCase(message, "Маша");
     }
 
     private String getAnswer(String message, String chatId) {
