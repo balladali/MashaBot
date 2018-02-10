@@ -7,3 +7,6 @@ credential:
     token: ${TG_BOT_TOKEN:}
   youtube:
     key: ${YOUTUBE_API_KEY:}
+search:
+  youtube:
+    maxresults: ${MAX_RESULTS:10}

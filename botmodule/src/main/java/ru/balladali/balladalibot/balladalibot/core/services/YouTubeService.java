@@ -21,6 +21,9 @@ public class YouTubeService {
     @Value("${credential.youtube.key}")
     private String YOUTUBE_API_KEY;
 
+    @Value("${search.youtube.maxresults}")
+    private long MAX_SEARCH_RESULTS;
+
     private YouTube youTube;
 
     public YouTubeService(YouTube youTube) {
@@ -29,10 +32,13 @@ public class YouTubeService {
 
     public List<YouTubeVideoEntity> search(String searchQuery) throws IOException {
         YouTube.Search.List search = youTube.search().list("snippet").setKey(YOUTUBE_API_KEY);
-        YouTube.Videos.List info = youTube.videos().list("snippet, contentDetails").setKey(YOUTUBE_API_KEY);
         search.setQ(searchQuery);
         search.setType("video");
+        search.setMaxResults(MAX_SEARCH_RESULTS);
         SearchListResponse searchListResponse = search.execute();
+
+        YouTube.Videos.List info = youTube.videos().list("snippet, contentDetails").setKey(YOUTUBE_API_KEY);
+        info.setMaxResults(MAX_SEARCH_RESULTS);
 
         List<YouTubeVideoEntity> videos = new ArrayList<>();
 
