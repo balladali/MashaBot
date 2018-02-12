@@ -62,6 +62,11 @@
             <artifactId>joda-time</artifactId>
             <version>2.9.9</version>
         </dependency>
+        <dependency>
+            <groupId>co.aurasphere</groupId>
+            <artifactId>jyandex</artifactId>
+            <version>1.0.0</version>
+        </dependency>
     </dependencies>
 
     <build>

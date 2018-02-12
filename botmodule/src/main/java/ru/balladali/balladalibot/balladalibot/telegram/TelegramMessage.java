@@ -25,4 +25,13 @@ public class TelegramMessage implements MessageEntity {
     public String getSender() {
         return message.getFrom().getFirstName() + " " + message.getFrom().getLastName();
     }
+
+    @Override
+    public String getReply() {
+        Message replyMessage = message.getReplyToMessage();
+        if (replyMessage != null) {
+            return replyMessage.getText();
+        }
+        return null;
+    }
 }

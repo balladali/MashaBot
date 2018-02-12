@@ -6,4 +6,6 @@ public interface MessageEntity {
     String getChatId();
 
     String getSender();
+
+    String getReply();
 }
