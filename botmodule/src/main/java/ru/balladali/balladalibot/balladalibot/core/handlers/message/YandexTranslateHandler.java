@@ -17,10 +17,13 @@ public class YandexTranslateHandler implements MessageHandler {
     @Override
 
     public String answer(MessageEntity entity) {
-        String message = entity.getText();
+        String languageFromMessage = entity.getText().toLowerCase();
         String toTranslate = entity.getReply();
-        if (needAnswer(message) && toTranslate != null) {
-            String[] translatedText = jyandex.translateText(toTranslate, message).getTranslatedText();
+        if (needAnswer(languageFromMessage) && toTranslate != null) {
+            String[] translatedText = jyandex.translateText(toTranslate, languageFromMessage).getTranslatedText();
+            if (translatedText == null) {
+                return "Извини, не могу :(";
+            }
             return String.join(" ", translatedText);
         }
         return null;
