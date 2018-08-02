@@ -5,7 +5,7 @@ public interface MessageEntity {
 
     String getChatId();
 
-    String getSender();
+    String getSenderName();
 
     String getReply();
 }

@@ -2,6 +2,7 @@ package ru.balladali.balladalibot.balladalibot.core.handlers.message;
 
 import org.apache.commons.lang.StringUtils;
 import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -9,12 +10,19 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.send.SendVoice;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.balladalibot.balladalibot.core.entity.BotContext;
-import ru.balladali.balladalibot.balladalibot.core.entity.MessageEntity;
+import ru.balladali.balladalibot.balladalibot.core.services.YandexSpeechService;
+import ru.balladali.balladalibot.balladalibot.telegram.TelegramMessage;
 
 import java.util.*;
 
 public class ConversationHandler implements MessageHandler {
+
+    @Value("${bot.voice-mode}")
+    boolean voiceModeEnabled;
 
     private final String ANSWER_URL = "http://p-bot.ru/api/getAnswer";
     private final String PUBLIC_API = "public-api";
@@ -23,20 +31,49 @@ public class ConversationHandler implements MessageHandler {
 
     private Map<String, BotContext> contextMap = new HashMap<>();
 
-    @Override
-    public String answer(MessageEntity entity) {
-        String message = entity.getText();
-        String chatId = entity.getChatId();
-        if (needAnswer(message)) {
-            message = message.replaceAll("Маша,", "").replaceAll("маша,", "").trim();
-            return getAnswer(message, chatId);
-        }
-        return null;
+    private YandexSpeechService yandexSpeechService;
+
+    public ConversationHandler(YandexSpeechService yandexSpeechService) {
+        this.yandexSpeechService = yandexSpeechService;
     }
 
     @Override
-    public boolean needAnswer(String message) {
+    public void handle(TelegramMessage entity) {
+        String message = entity.getText();
+        String chatId = entity.getChatId();
+        message = message.replaceAll("Маша,", "").replaceAll("маша,", "").trim();
+        String answer = getAnswer(message, chatId);
+        if (voiceModeEnabled) {
+            sendVoiceAnswer(entity, answer);
+        } else {
+            sendAnswer(entity, answer);
+        }
+    }
+
+    @Override
+    public boolean needHandle(String message) {
         return StringUtils.containsIgnoreCase(message, "Маша");
+    }
+
+    @Override
+    public void sendAnswer(TelegramMessage messageEntity, String answer) {
+        SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
+        try {
+            messageEntity.getSender().execute(sendMessage);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void sendVoiceAnswer(TelegramMessage messageEntity, String answer) {
+        SendVoice sendAudio = new SendVoice();
+        sendAudio.setChatId(messageEntity.getChatId());
+        sendAudio.setVoice("answer", yandexSpeechService.synthesize(answer));
+        try {
+            messageEntity.getSender().execute(sendAudio);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
     }
 
     private String getAnswer(String message, String chatId) {

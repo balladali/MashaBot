@@ -1,8 +1,10 @@
 package ru.balladali.balladalibot.balladalibot.core.handlers.message;
 
 import co.aurasphere.jyandex.Jyandex;
+import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.balladalibot.balladalibot.core.entity.Language;
-import ru.balladali.balladalibot.balladalibot.core.entity.MessageEntity;
+import ru.balladali.balladalibot.balladalibot.telegram.TelegramMessage;
 
 import java.util.Arrays;
 
@@ -15,22 +17,30 @@ public class YandexTranslateHandler implements MessageHandler {
     }
 
     @Override
-
-    public String answer(MessageEntity entity) {
+    public void handle(TelegramMessage entity) {
         String languageFromMessage = entity.getText().toLowerCase();
         String toTranslate = entity.getReply();
-        if (needAnswer(languageFromMessage) && toTranslate != null) {
+        if (needHandle(languageFromMessage) && toTranslate != null) {
             String[] translatedText = jyandex.translateText(toTranslate, languageFromMessage).getTranslatedText();
             if (translatedText == null) {
-                return "Извини, не могу :(";
+                sendAnswer(entity,"Извини, не могу :(");
             }
-            return String.join(" ", translatedText);
+            sendAnswer(entity, String.join(" ", translatedText));
         }
-        return null;
     }
 
     @Override
-    public boolean needAnswer(String message) {
+    public boolean needHandle(String message) {
         return Arrays.asList(Language.values()).contains(Language.fromString(message));
+    }
+
+    @Override
+    public void sendAnswer(TelegramMessage messageEntity, String answer) {
+        SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
+        try {
+            messageEntity.getSender().execute(sendMessage);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
     }
 }

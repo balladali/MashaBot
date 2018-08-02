@@ -1,6 +1,13 @@
 server:
-    address: 0.0.0.0
-    port: ${PORT:8080}
+  address: 0.0.0.0
+  port: ${PORT:8080}
+bot:
+  voice-mode: ${VOICE_MODE:false}
+proxy:
+  host: ${PROXY_HOST:}
+  port: ${PROXY_PORT:}
+  user: ${PROXY_USER:}
+  password: ${PROXY_PASSWORD:}
 credential:
   telegram:
     login: ${TG_BOT_NAME:}
@@ -10,6 +17,8 @@ credential:
   yandex:
     translate:
       key: ${YANDEX_TRANSLATE_API_KEY:}
+    speech:
+      key: ${YANDEX_SPEECH_API_KEY:}
 search:
   youtube:
     maxresults: ${MAX_RESULTS:10}
