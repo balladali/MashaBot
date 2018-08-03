@@ -1,29 +1,24 @@
 package ru.balladali.balladalibot.balladalibot.telegram;
 
-import org.apache.commons.lang.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.stereotype.Component;
-import org.telegram.telegrambots.TelegramBotsApi;
-import org.telegram.telegrambots.api.methods.AnswerInlineQuery;
-import org.telegram.telegrambots.api.methods.send.SendMessage;
-import org.telegram.telegrambots.api.objects.Message;
-import org.telegram.telegrambots.api.objects.Update;
-import org.telegram.telegrambots.api.objects.inlinequery.InlineQuery;
-import org.telegram.telegrambots.api.objects.inlinequery.result.InlineQueryResult;
-import org.telegram.telegrambots.api.objects.inlinequery.result.InlineQueryResultVideo;
+import org.telegram.telegrambots.bots.DefaultBotOptions;
 import org.telegram.telegrambots.bots.TelegramLongPollingBot;
-import org.telegram.telegrambots.exceptions.TelegramApiException;
-import org.telegram.telegrambots.exceptions.TelegramApiRequestException;
-import ru.balladali.balladalibot.balladalibot.core.entity.MessageEntity;
+import org.telegram.telegrambots.meta.TelegramBotsApi;
+import org.telegram.telegrambots.meta.api.methods.AnswerInlineQuery;
+import org.telegram.telegrambots.meta.api.objects.Message;
+import org.telegram.telegrambots.meta.api.objects.Update;
+import org.telegram.telegrambots.meta.api.objects.inlinequery.InlineQuery;
+import org.telegram.telegrambots.meta.api.objects.inlinequery.result.InlineQueryResult;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import org.telegram.telegrambots.meta.exceptions.TelegramApiRequestException;
 import ru.balladali.balladalibot.balladalibot.core.handlers.inline.InlineHandler;
 import ru.balladali.balladalibot.balladalibot.core.handlers.message.MessageHandler;
+import ru.balladali.balladalibot.balladalibot.core.services.YandexSpeechService;
 
-import javax.annotation.PostConstruct;
 import javax.annotation.PreDestroy;
 import java.util.List;
 
-@Component
 public class BalladaliBot extends TelegramLongPollingBot {
 
     @Value("${credential.telegram.login}")
@@ -32,11 +27,20 @@ public class BalladaliBot extends TelegramLongPollingBot {
     @Value("${credential.telegram.token}")
     private String botToken;
 
-    @Autowired
-    List<MessageHandler> messageHandlers;
+    private DefaultBotOptions botOptions;
 
     @Autowired
-    InlineHandler inlineHandler;
+    private List<MessageHandler> messageHandlers;
+
+    @Autowired
+    private InlineHandler inlineHandler;
+
+    @Autowired
+    private YandexSpeechService yandexSpeechService;
+
+    public BalladaliBot(DefaultBotOptions botOptions) {
+        super(botOptions);
+    }
 
     @Override
     public void onUpdateReceived(Update update) {
@@ -53,17 +57,11 @@ public class BalladaliBot extends TelegramLongPollingBot {
     }
 
     private void handleMessage(Message message) {
-        MessageEntity messageEntity = new TelegramMessage(message);
-        for (MessageHandler messageHandler: messageHandlers) {
-            String answer = messageHandler.answer(messageEntity);
-            if (answer != null) {
-                SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
-                try {
-                    execute(sendMessage);
-                    return;
-                } catch (TelegramApiException e) {
-                    e.printStackTrace();
-                }
+        TelegramMessage messageEntity = new TelegramMessage(message, this);
+        for (MessageHandler messageHandler : messageHandlers) {
+            if (messageHandler.needHandle(message.getText())) {
+                messageHandler.handle(messageEntity);
+                return;
             }
         }
     }
@@ -92,7 +90,6 @@ public class BalladaliBot extends TelegramLongPollingBot {
         return botToken;
     }
 
-    @PostConstruct
     public void init() {
         TelegramBotsApi telegramBotsApi = new TelegramBotsApi();
         try {

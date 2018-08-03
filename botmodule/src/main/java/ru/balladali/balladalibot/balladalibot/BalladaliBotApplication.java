@@ -9,22 +9,27 @@ import org.telegram.telegrambots.ApiContextInitializer;
 import ru.balladali.balladalibot.balladalibot.pingjob.PingJob;
 import ru.balladali.balladalibot.balladalibot.telegram.BalladaliBot;
 
+import javax.annotation.PostConstruct;
+
 @SpringBootApplication
 @ComponentScan
 public class BalladaliBotApplication {
-	@Autowired
-	BalladaliBot balladaliBot;
 
-	{
-		ApiContextInitializer.init();
-	}
+	@Autowired
+	private	BalladaliBot balladaliBot;
 
 	public static void main(String[] args) {
+		ApiContextInitializer.init();
 		SpringApplication.run(BalladaliBotApplication.class, args);
 	}
 
 	@Bean
 	public PingJob getPing() {
 		return new PingJob();
+	}
+
+	@PostConstruct
+	private void init() {
+		balladaliBot.init();
 	}
 }

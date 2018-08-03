@@ -1,10 +1,11 @@
 package ru.balladali.balladalibot.balladalibot.core.handlers.inline;
 
 import com.google.common.collect.Lists;
-import org.telegram.telegrambots.api.objects.inlinequery.InlineQuery;
-import org.telegram.telegrambots.api.objects.inlinequery.inputmessagecontent.InputMessageContent;
-import org.telegram.telegrambots.api.objects.inlinequery.inputmessagecontent.InputTextMessageContent;
-import org.telegram.telegrambots.api.objects.inlinequery.result.InlineQueryResultVideo;
+import org.telegram.telegrambots.meta.api.objects.inlinequery.InlineQuery;
+import org.telegram.telegrambots.meta.api.objects.inlinequery.inputmessagecontent.InputMessageContent;
+import org.telegram.telegrambots.meta.api.objects.inlinequery.inputmessagecontent.InputTextMessageContent;
+import org.telegram.telegrambots.meta.api.objects.inlinequery.result.InlineQueryResult;
+import org.telegram.telegrambots.meta.api.objects.inlinequery.result.InlineQueryResultVideo;
 import ru.balladali.balladalibot.balladalibot.core.entity.YouTubeVideoEntity;
 import ru.balladali.balladalibot.balladalibot.core.services.YouTubeService;
 
@@ -20,7 +21,7 @@ public class YouTubeInlineHandler implements InlineHandler {
     }
 
     @Override
-    public List<InlineQueryResultVideo> answerInline(InlineQuery query) {
+    public List<? extends InlineQueryResult> answerInline(InlineQuery query) {
         try {
             List<YouTubeVideoEntity> videoIDs = youTubeService.search(query.getQuery());
             List<InlineQueryResultVideo> results = Lists.newArrayList();
