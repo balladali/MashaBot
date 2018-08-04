@@ -22,3 +22,5 @@ credential:
 search:
   youtube:
     maxresults: ${MAX_RESULTS:10}
+ping-job:
+  enabled: ${PING_JOB_ENABLED:false}

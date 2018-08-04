@@ -3,6 +3,7 @@ package ru.balladali.balladalibot.balladalibot;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.telegram.telegrambots.ApiContextInitializer;
@@ -24,6 +25,7 @@ public class BalladaliBotApplication {
 	}
 
 	@Bean
+	@ConditionalOnProperty(name = "ping-job.enabled", havingValue = "true")
 	public PingJob getPing() {
 		return new PingJob();
 	}

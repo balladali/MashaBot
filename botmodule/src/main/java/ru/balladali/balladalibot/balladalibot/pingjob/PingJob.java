@@ -18,23 +18,23 @@ public class PingJob {
         this.scheduler = new ConcurrentTaskScheduler();
     }
 
-//    @PostConstruct
-//    private void job() {
-//        scheduler.scheduleWithFixedDelay(new Runnable() {
-//            private int num = ITER;
-//
-//            @Override
-//            public void run() {
-//                num = ITER;
-//                if (num < 48) {
-//                    try {
-//                        new RestTemplate().getForObject(new URI("https://balladalibot.herokuapp.com"), String.class);
-//                    } catch (URISyntaxException e) {
-//                        e.printStackTrace();
-//                    }
-//                    ITER++;
-//                }
-//            }
-//        }, DELAY_TO_UPDATE);
-//    }
+    @PostConstruct
+    private void job() {
+        scheduler.scheduleWithFixedDelay(new Runnable() {
+            private int num = ITER;
+
+            @Override
+            public void run() {
+                num = ITER;
+                if (num < 48) {
+                    try {
+                        new RestTemplate().getForObject(new URI("https://balladalibot.herokuapp.com"), String.class);
+                    } catch (URISyntaxException e) {
+                        e.printStackTrace();
+                    }
+                    ITER++;
+                }
+            }
+        }, DELAY_TO_UPDATE);
+    }
 }
