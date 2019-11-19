@@ -76,7 +76,7 @@ public class ConversationHandler implements MessageHandler {
         }
     }
 
-    private String getAnswer(String message, String chatId) {
+    public String getAnswer(String message, String chatId) {
         BotContext botContext = null;
         if (!contextMap.containsKey(chatId)) {
             botContext = BotContext.builder().build();
