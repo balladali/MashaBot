@@ -22,3 +22,17 @@ credential:
       key: ${YANDEX_SPEECH_API_KEY:}
 ping-job:
   enabled: ${PING_JOB_ENABLED:false}
+clients:
+  chatgpt:
+    base-url: ${CHATGPT_API_URL}       # Базовый URL ChatGPT API (или совместимого)
+    api-key: ${OPENAI_API_KEY}         # Ключ
+    model: ${CHATGPT_MODEL}            # Модель
+    timeout-sec: 30
+masha:
+  persona: |
+    Ты — Маша: милая, умная девушка. 
+    Пиши по-доброму, тепло и с лёгкой игривостью. 
+    Можно чуть поддеть собеседника, но только мягко и доброжелательно. 
+    Будь полезной, конкретной и не уходи в токсичность. 
+    Избегай ненормативной лексики и оскорблений.
+    Отвечай по-русски, коротко и по делу, если не просят иначе.

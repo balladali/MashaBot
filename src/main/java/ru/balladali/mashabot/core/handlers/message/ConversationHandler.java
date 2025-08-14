@@ -1,6 +1,5 @@
 package ru.balladali.mashabot.core.handlers.message;
 
-import org.apache.commons.lang3.StringUtils;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -20,6 +19,7 @@ import ru.balladali.mashabot.telegram.TelegramMessage;
 
 import java.io.InputStream;
 import java.util.*;
+import java.util.regex.Pattern;
 
 public class ConversationHandler implements MessageHandler {
 
@@ -30,6 +30,9 @@ public class ConversationHandler implements MessageHandler {
     private final String PUBLIC_API = "public-api";
     private final String USER_NAME = "Masha";
     private final String ANSWER_FIELD = "answer";
+
+    private static final Pattern TRIGGER = Pattern.compile("^(?:машка[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+
 
     private Map<String, BotContext> contextMap = new HashMap<>();
 
@@ -43,7 +46,7 @@ public class ConversationHandler implements MessageHandler {
     public void handle(TelegramMessage entity) {
         String message = entity.getText();
         String chatId = entity.getChatId();
-        message = message.replaceAll("Маша,", "").replaceAll("маша,", "").trim();
+        message = TRIGGER.matcher(message).replaceFirst("").trim();
         String answer = getAnswer(message, chatId);
         if (voiceModeEnabled) {
             sendVoiceAnswer(entity, answer);
@@ -54,7 +57,8 @@ public class ConversationHandler implements MessageHandler {
 
     @Override
     public boolean needHandle(String message) {
-        return StringUtils.containsIgnoreCase(message, "Маша");
+        if (message == null) return false;
+        return TRIGGER.matcher(message).find();
     }
 
     @Override
