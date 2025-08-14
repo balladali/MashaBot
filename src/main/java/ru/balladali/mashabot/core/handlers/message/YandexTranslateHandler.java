@@ -38,7 +38,7 @@ public class YandexTranslateHandler implements MessageHandler {
     public void sendAnswer(TelegramMessage messageEntity, String answer) {
         SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
         try {
-            messageEntity.getSender().execute(sendMessage);
+            messageEntity.getClient().execute(sendMessage);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }

@@ -1,18 +1,18 @@
 package ru.balladali.mashabot.telegram;
 
-import org.telegram.telegrambots.meta.api.objects.Message;
-import org.telegram.telegrambots.meta.bots.AbsSender;
+import org.telegram.telegrambots.meta.api.objects.message.Message;
+import org.telegram.telegrambots.meta.generics.TelegramClient;
 import ru.balladali.mashabot.core.entity.MessageEntity;
 
 public class TelegramMessage implements MessageEntity {
 
     private Message message;
 
-    private AbsSender sender;
+    private TelegramClient client;
 
-    public TelegramMessage(Message message, AbsSender sender) {
+    public TelegramMessage(Message message, TelegramClient client) {
         this.message = message;
-        this.sender = sender;
+        this.client = client;
     }
 
     @Override
@@ -43,7 +43,7 @@ public class TelegramMessage implements MessageEntity {
         return message;
     }
 
-    public AbsSender getSender() {
-        return sender;
+    public TelegramClient getClient() {
+        return client;
     }
 }

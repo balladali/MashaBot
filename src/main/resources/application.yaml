@@ -4,23 +4,21 @@ server:
 bot:
   voice-mode: ${VOICE_MODE:false}
 proxy:
+  type: ${PROXY_TYPE:NONE}            # NONE | HTTP | SOCKS
   host: ${PROXY_HOST:}
   port: ${PROXY_PORT:}
   user: ${PROXY_USER:}
-  password: ${PROXY_PASSWORD:}
+  pass: ${PROXY_PASSWORD:}
+  connect-timeout-ms: 15000
+  read-timeout-ms: 30000
+  write-timeout-ms: 30000
 credential:
   telegram:
-    login: ${TG_BOT_NAME:}
     token: ${TG_BOT_TOKEN:}
-  youtube:
-    key: ${YOUTUBE_API_KEY:}
   yandex:
     translate:
       key: ${YANDEX_TRANSLATE_API_KEY:}
     speech:
       key: ${YANDEX_SPEECH_API_KEY:}
-search:
-  youtube:
-    maxresults: ${MAX_RESULTS:10}
 ping-job:
   enabled: ${PING_JOB_ENABLED:false}

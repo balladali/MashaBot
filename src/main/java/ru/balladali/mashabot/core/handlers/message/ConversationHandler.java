@@ -1,6 +1,6 @@
 package ru.balladali.mashabot.core.handlers.message;
 
-import org.apache.commons.lang.StringUtils;
+import org.apache.commons.lang3.StringUtils;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -12,11 +12,13 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendVoice;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.entity.BotContext;
 import ru.balladali.mashabot.core.services.YandexSpeechService;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 
+import java.io.InputStream;
 import java.util.*;
 
 public class ConversationHandler implements MessageHandler {
@@ -59,19 +61,21 @@ public class ConversationHandler implements MessageHandler {
     public void sendAnswer(TelegramMessage messageEntity, String answer) {
         SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
         try {
-            messageEntity.getSender().execute(sendMessage);
+            messageEntity.getClient().execute(sendMessage);
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
     }
 
     private void sendVoiceAnswer(TelegramMessage messageEntity, String answer) {
-        SendVoice sendAudio = new SendVoice();
-        sendAudio.setChatId(messageEntity.getChatId());
-        sendAudio.setVoice("answer", yandexSpeechService.synthesize(answer));
-        try {
-            messageEntity.getSender().execute(sendAudio);
-        } catch (TelegramApiException e) {
+        try (InputStream is = yandexSpeechService.synthesize(answer)) {
+            // указываем имя файла с правильным расширением
+            InputFile voiceFile = new InputFile(is, "answer.ogg");
+            SendVoice sendVoice = new SendVoice(messageEntity.getChatId(), voiceFile);
+
+            messageEntity.getClient().execute(sendVoice);
+
+        } catch (Exception e) {
             e.printStackTrace();
         }
     }

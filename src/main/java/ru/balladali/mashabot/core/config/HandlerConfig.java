@@ -5,13 +5,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
-import ru.balladali.mashabot.core.handlers.inline.YouTubeInlineHandler;
-import ru.balladali.mashabot.core.handlers.message.ConversationHandler;
-import ru.balladali.mashabot.core.handlers.message.MessageHandler;
-import ru.balladali.mashabot.core.handlers.message.YandexTranslateHandler;
-import ru.balladali.mashabot.core.handlers.message.YouTubeHandler;
+import ru.balladali.mashabot.core.clients.exchange.ExchangeRateClient;
+import ru.balladali.mashabot.core.handlers.message.*;
 import ru.balladali.mashabot.core.services.YandexSpeechService;
-import ru.balladali.mashabot.core.services.YouTubeService;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -29,30 +25,23 @@ public class HandlerConfig {
 
     @Autowired
     @Order(1)
-    @Bean(name = "youtubeHandler")
-    public YouTubeHandler getYouTubeHandler(@Nonnull YouTubeService youTubeService) {
-        return new YouTubeHandler(youTubeService);
-    }
-
-    @Autowired
-    @Bean("youtubeInlineHandler")
-    public YouTubeInlineHandler getYouTubeInlineHandler(@Nonnull YouTubeService youTubeService) {
-        return new YouTubeInlineHandler(youTubeService);
-    }
-
-    @Autowired
-    @Order(2)
     @Bean("yandexTranslateHandler")
     public YandexTranslateHandler getYandexTranslateHandler(@Nonnull Jyandex jyandex) {
         return new YandexTranslateHandler(jyandex);
     }
 
+    @Autowired
+    @Bean("currencyConvertHandler")
+    public CurrencyConvertHandler currencyConvertHandler(ExchangeRateClient exchangeRateClient) {
+        return new CurrencyConvertHandler(exchangeRateClient);
+    }
+
     @Bean
     public List<MessageHandler> messageHandlers(Map<String, MessageHandler> messageHandlers) {
         List<MessageHandler> messageHandlersList = new ArrayList<>();
-        messageHandlersList.add(messageHandlers.get("youtubeHandler"));
         messageHandlersList.add(messageHandlers.get("yandexTranslateHandler"));
         messageHandlersList.add(messageHandlers.get("conversationHandler"));
+        messageHandlersList.add(messageHandlers.get("currencyConvertHandler"));
         return messageHandlersList;
     }
 }
