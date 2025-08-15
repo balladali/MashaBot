@@ -20,7 +20,7 @@ public class YandexTranslateHandler implements MessageHandler {
     public void handle(TelegramMessage entity) {
         String languageFromMessage = entity.getText().toLowerCase();
         String toTranslate = entity.getReply();
-        if (needHandle(languageFromMessage) && toTranslate != null) {
+        if (needHandle(entity) && toTranslate != null) {
             String[] translatedText = jyandex.translateText(toTranslate, languageFromMessage).getTranslatedText();
             if (translatedText == null) {
                 sendAnswer(entity,"Извини, не могу :(");
@@ -30,8 +30,11 @@ public class YandexTranslateHandler implements MessageHandler {
     }
 
     @Override
-    public boolean needHandle(String message) {
-        return Arrays.asList(Language.values()).contains(Language.fromString(message));
+    public boolean needHandle(TelegramMessage message) {
+        if (message== null || message.getText() == null) {
+            return false;
+        }
+        return Arrays.asList(Language.values()).contains(Language.fromString(message.getText().toLowerCase()));
     }
 
     @Override

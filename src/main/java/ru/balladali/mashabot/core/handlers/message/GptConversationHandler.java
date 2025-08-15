@@ -22,9 +22,9 @@ public class GptConversationHandler implements MessageHandler {
     }
 
     @Override
-    public boolean needHandle(String message) {
-        if (message == null) return false;
-        return TRIGGER.matcher(message).find();
+    public boolean needHandle(TelegramMessage message) {
+        if (message == null || message.getText() == null) return false;
+        return TRIGGER.matcher(message.getText()).find();
     }
 
     @Override

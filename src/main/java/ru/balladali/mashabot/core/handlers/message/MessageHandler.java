@@ -6,7 +6,7 @@ public interface MessageHandler {
 
     void handle(TelegramMessage entity);
 
-    boolean needHandle(String message);
+    boolean needHandle(TelegramMessage message);
 
     void sendAnswer(TelegramMessage messageEntity, String answer);
 }

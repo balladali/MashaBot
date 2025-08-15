@@ -26,7 +26,7 @@ public class Bot implements LongPollingSingleThreadUpdateConsumer {
     private void handleMessage(Message message) {
         TelegramMessage messageEntity = new TelegramMessage(message, this.telegramClient);
         for (MessageHandler messageHandler : messageHandlers) {
-            if (messageHandler.needHandle(message.getText())) {
+            if (messageHandler.needHandle(messageEntity)) {
                 messageHandler.handle(messageEntity);
                 return;
             }

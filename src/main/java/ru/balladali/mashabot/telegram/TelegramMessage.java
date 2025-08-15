@@ -39,6 +39,11 @@ public class TelegramMessage implements MessageEntity {
         return null;
     }
 
+    @Override
+    public String getCaption() {
+        return String.valueOf(message.getCaption());
+    }
+
     public Message getMessage() {
         return message;
     }

@@ -8,4 +8,6 @@ public interface MessageEntity {
     String getSenderName();
 
     String getReply();
+
+    String getCaption();
 }
