@@ -333,8 +333,7 @@ public class CurrencyConvertHandler implements MessageHandler {
     private List<String> collectCandidateTexts(TelegramMessage e) {
         return Arrays.asList(
                 safe(() -> e.getText()),
-                safe(() -> e.getCaption()),
-                safe(() -> e.getReply())
+                safe(() -> e.getCaption())
         );
     }
 

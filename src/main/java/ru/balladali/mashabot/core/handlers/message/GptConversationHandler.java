@@ -1,5 +1,6 @@
 package ru.balladali.mashabot.core.handlers.message;
 
+import org.jetbrains.annotations.NotNull;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
@@ -34,20 +35,19 @@ public class GptConversationHandler implements MessageHandler {
         // 1) срезаем триггер "Маша" в начале
         String userQuery = TRIGGER.matcher(text).replaceFirst("").trim();
 
-        // 2) собираем контекст: если это reply — добавим как system-hint
-        String reply = entity.getReply();
-        if (userQuery.isEmpty() && (reply == null || reply.isBlank())) {
+        // 2) собираем контекст: если это reply или caption — добавим как system-hint
+        String reply = "";
+        String caption = "";
+        if (entity.getMessage().getReplyToMessage() != null) {
+            reply = entity.getMessage().getReplyToMessage().getText();
+            caption = entity.getMessage().getReplyToMessage().getCaption();
+        }
+        if (userQuery.isEmpty() && (reply == null || reply.isBlank()) && (caption == null || caption.isBlank())) {
             sendAnswer(entity, "Привет! Я Маша \uD83E\uDD84 Чем могу помочь?");
             return;
         }
 
-        List<ChatGptClient.ChatMessage> messages = new ArrayList<>();
-        messages.add(new ChatGptClient.ChatMessage("system", personaSystemPrompt));
-        if (reply != null && !reply.isBlank()) {
-            messages.add(new ChatGptClient.ChatMessage("system", "Контекст предыдущего сообщения пользователя: «" + reply + "»."));
-        }
-        messages.add(new ChatGptClient.ChatMessage("user", userQuery));
-
+        List<ChatGptClient.ChatMessage> messages = getChatMessages(reply, caption, userQuery);
         try {
             String answer = chat.chat(messages, 0.8, 600); // temperature и лимит токенов — можно подкрутить
             sendAnswer(entity, answer);
@@ -55,6 +55,24 @@ public class GptConversationHandler implements MessageHandler {
             e.printStackTrace();
             sendAnswer(entity, "Ой, тут что-то пошло не так… Давай попробуем ещё раз чуток позже?");
         }
+    }
+
+    @NotNull
+    private List<ChatGptClient.ChatMessage> getChatMessages(String reply, String caption, String userQuery) {
+        List<ChatGptClient.ChatMessage> messages = new ArrayList<>();
+        messages.add(new ChatGptClient.ChatMessage("system", personaSystemPrompt));
+        String context = "";
+        if (reply != null && !reply.isBlank()) {
+            context += reply;
+        }
+        if (caption != null && !caption.isBlank()) {
+            context += "\n" + caption;
+        }
+        if (!context.isBlank()) {
+            messages.add(new ChatGptClient.ChatMessage("system", "Контекст предыдущего сообщения пользователя: «" + context + "»."));
+        }
+        messages.add(new ChatGptClient.ChatMessage("user", userQuery));
+        return messages;
     }
 
     @Override
