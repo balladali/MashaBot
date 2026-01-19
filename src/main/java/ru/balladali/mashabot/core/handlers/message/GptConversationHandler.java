@@ -2,6 +2,8 @@ package ru.balladali.mashabot.core.handlers.message;
 
 import org.jetbrains.annotations.NotNull;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.methods.ActionType;
+import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
 import ru.balladali.mashabot.telegram.TelegramMessage;
@@ -49,6 +51,7 @@ public class GptConversationHandler implements MessageHandler {
 
         List<ChatGptClient.ChatMessage> messages = getChatMessages(reply, caption, userQuery);
         try {
+            sendTyping(entity);
             String answer = chat.chat(messages, 0.8, 600); // temperature и лимит токенов — можно подкрутить
             sendAnswer(entity, answer);
         } catch (Exception e) {
@@ -115,6 +118,15 @@ public class GptConversationHandler implements MessageHandler {
         }
         if (!buf.isEmpty()) parts.add(buf.toString());
         return parts;
+    }
+
+    private void sendTyping(TelegramMessage messageEntity) {
+        SendChatAction action = new SendChatAction(messageEntity.getChatId(), ActionType.TYPING.toString());
+        try {
+            messageEntity.getClient().execute(action);
+        } catch (TelegramApiException e) {
+            e.printStackTrace();
+        }
     }
 }
 
