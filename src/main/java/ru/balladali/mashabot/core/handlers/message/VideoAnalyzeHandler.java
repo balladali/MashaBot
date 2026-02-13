@@ -26,8 +26,7 @@ public class VideoAnalyzeHandler implements MessageHandler {
 
     @Override
     public void handle(TelegramMessage entity) {
-        String text = Optional.ofNullable(entity.getText()).orElse("");
-        String ytUrl = extractYoutubeUrl(text);
+        String ytUrl = extractYoutubeUrlFromMessageOrReply(entity);
         if (ytUrl == null) return;
 
         try {
@@ -54,11 +53,24 @@ public class VideoAnalyzeHandler implements MessageHandler {
         return text != null && ANALYZE_TRIGGER.matcher(text).find();
     }
 
+    static String extractYoutubeUrlFromMessageOrReply(TelegramMessage message) {
+        if (message == null) return null;
+
+        String direct = extractYoutubeUrl(message.getText());
+        if (direct != null) return direct;
+
+        if (message.getMessage() != null && message.getMessage().getReplyToMessage() != null) {
+            return extractYoutubeUrl(message.getMessage().getReplyToMessage().getText());
+        }
+
+        return null;
+    }
+
     @Override
     public boolean needHandle(TelegramMessage message) {
         if (message == null || message.getText() == null) return false;
         String text = message.getText();
-        return extractYoutubeUrl(text) != null && hasAnalyzeTrigger(text);
+        return hasAnalyzeTrigger(text) && extractYoutubeUrlFromMessageOrReply(message) != null;
     }
 
     private String formatResult(VideoAnalyzerClient.AnalyzeResponse res) {
