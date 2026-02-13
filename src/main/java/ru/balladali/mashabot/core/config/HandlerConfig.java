@@ -8,6 +8,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import ru.balladali.mashabot.core.clients.exchange.ExchangeRateClient;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
+import ru.balladali.mashabot.core.clients.video.VideoAnalyzerClient;
 import ru.balladali.mashabot.core.handlers.message.*;
 import ru.balladali.mashabot.core.services.YandexSpeechService;
 
@@ -45,11 +46,18 @@ public class HandlerConfig {
         return new GptConversationHandler(client, mashaProperties.persona());
     }
 
+    @Autowired
+    @Bean("videoAnalyzeHandler")
+    public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client) {
+        return new VideoAnalyzeHandler(client);
+    }
+
     @Bean
     public List<MessageHandler> messageHandlers(Map<String, MessageHandler> messageHandlers) {
         List<MessageHandler> messageHandlersList = new ArrayList<>();
         messageHandlersList.add(messageHandlers.get("yandexTranslateHandler"));
         messageHandlersList.add(messageHandlers.get("conversationHandler"));
+        messageHandlersList.add(messageHandlers.get("videoAnalyzeHandler"));
         messageHandlersList.add(messageHandlers.get("gptConversationHandler"));
         messageHandlersList.add(messageHandlers.get("currencyConvertHandler"));
         return messageHandlersList;
