@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  yt-video-analyzer:
+    build:
+      context: https://github.com/balladali/yt-video-analyzer.git#main
+    container_name: yt-video-analyzer
+    restart: unless-stopped
+    environment:
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      LLM_MODEL: ${VIDEO_ANALYZER_LLM_MODEL:-openai/gpt-4o-mini}
+    ports:
+      - "8000:8000"
+
+  masha-bot:
+    image: balladali/masha-bot:master
+    container_name: masha-bot
+    restart: unless-stopped
+    depends_on:
+      - yt-video-analyzer
+    ports:
+      - "2468:8080"
+    environment:
+      TG_BOT_TOKEN: ${TG_BOT_TOKEN}
+      TG_BOT_NAME: ${TG_BOT_NAME:-MaschaBot}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      CHATGPT_API_URL: ${CHATGPT_API_URL:-https://openrouter.ai/api}
+      CHATGPT_MODEL: ${CHATGPT_MODEL:-x-ai/grok-4.1-fast}
+      VOICE_MODE: ${VOICE_MODE:-false}
+      YANDEX_TRANSLATE_API_KEY: ${YANDEX_TRANSLATE_API_KEY:-}
+      YANDEX_SPEECH_API_KEY: ${YANDEX_SPEECH_API_KEY:-}
+      VIDEO_ANALYZER_URL: ${VIDEO_ANALYZER_URL:-http://yt-video-analyzer:8000/analyze}
