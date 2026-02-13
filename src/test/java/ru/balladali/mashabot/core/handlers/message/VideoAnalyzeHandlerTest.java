@@ -22,4 +22,12 @@ class VideoAnalyzeHandlerTest {
         assertNull(VideoAnalyzeHandler.extractYoutubeUrl("https://example.com/video"));
         assertNull(VideoAnalyzeHandler.extractYoutubeUrl("просто текст"));
     }
+
+    @Test
+    void hasAnalyzeTrigger_detectsRussianAnalyzePhrases() {
+        assertTrue(VideoAnalyzeHandler.hasAnalyzeTrigger("проанализируй это видео"));
+        assertTrue(VideoAnalyzeHandler.hasAnalyzeTrigger("анализ https://youtu.be/abc"));
+        assertTrue(VideoAnalyzeHandler.hasAnalyzeTrigger("о чем видео?"));
+        assertFalse(VideoAnalyzeHandler.hasAnalyzeTrigger("вот ссылка без запроса"));
+    }
 }

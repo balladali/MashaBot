@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 public class VideoAnalyzeHandler implements MessageHandler {
     private static final int TG_LIMIT = 4096;
     private static final Pattern YT_URL = Pattern.compile("(https?://(?:www\\.)?(?:youtube\\.com/(?:watch\\?v=[^\\s&]+[^\\s]*|shorts/[^\\s?]+[^\\s]*)|youtu\\.be/[^\\s?]+[^\\s]*))", Pattern.CASE_INSENSITIVE);
+    private static final Pattern ANALYZE_TRIGGER = Pattern.compile("(проанализир(?:уй|овать|уйте)|анализ(?:ируй|ировать|)|о\\s*ч[её]м\\s*видео)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     private final VideoAnalyzerClient client;
 
@@ -49,10 +50,15 @@ public class VideoAnalyzeHandler implements MessageHandler {
         return null;
     }
 
+    static boolean hasAnalyzeTrigger(String text) {
+        return text != null && ANALYZE_TRIGGER.matcher(text).find();
+    }
+
     @Override
     public boolean needHandle(TelegramMessage message) {
         if (message == null || message.getText() == null) return false;
-        return extractYoutubeUrl(message.getText()) != null;
+        String text = message.getText();
+        return extractYoutubeUrl(text) != null && hasAnalyzeTrigger(text);
     }
 
     private String formatResult(VideoAnalyzerClient.AnalyzeResponse res) {
