@@ -29,8 +29,14 @@ class VideoAnalyzeHandlerTest {
     void hasAnalyzeTrigger_detectsRussianAnalyzePhrases() {
         assertTrue(VideoAnalyzeHandler.hasAnalyzeTrigger("проанализируй это видео"));
         assertTrue(VideoAnalyzeHandler.hasAnalyzeTrigger("анализ https://youtu.be/abc"));
-        assertTrue(VideoAnalyzeHandler.hasAnalyzeTrigger("о чем видео?"));
         assertFalse(VideoAnalyzeHandler.hasAnalyzeTrigger("вот ссылка без запроса"));
+    }
+
+    @Test
+    void isAddressedToBot_detectsMashaPrefix() {
+        assertTrue(VideoAnalyzeHandler.isAddressedToBot("Маша, расскажи 5 моментов"));
+        assertTrue(VideoAnalyzeHandler.isAddressedToBot("маша проанализируй"));
+        assertFalse(VideoAnalyzeHandler.isAddressedToBot("расскажи 5 моментов"));
     }
 
     @Test
@@ -54,12 +60,21 @@ class VideoAnalyzeHandlerTest {
         reply.setText("https://youtu.be/replyLink");
 
         Message msg = new Message();
-        msg.setText("проанализируй https://youtube.com/shorts/VVh_1g3mpj0?si=test");
+        msg.setText("Маша, проанализируй https://youtube.com/shorts/VVh_1g3mpj0?si=test");
         msg.setReplyToMessage(reply);
 
         TelegramMessage tm = new TelegramMessage(msg, null);
         String found = VideoAnalyzeHandler.extractYoutubeUrlFromMessageOrReply(tm);
 
         assertEquals("https://youtube.com/shorts/VVh_1g3mpj0?si=test", found);
+    }
+
+    @Test
+    void extractUserPrompt_removesTriggerAndUrl() {
+        Message msg = new Message();
+        msg.setText("Маша, расскажи 5 основных моментов из этого видео https://youtu.be/5uyCAExOoUk");
+        TelegramMessage tm = new TelegramMessage(msg, null);
+
+        assertEquals("расскажи 5 основных моментов из этого видео", VideoAnalyzeHandler.extractUserPrompt(tm));
     }
 }

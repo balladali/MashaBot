@@ -10,7 +10,7 @@ import java.util.List;
 
 public class VideoAnalyzerClient {
 
-    public record AnalyzeRequest(String url, String lang) {}
+    public record AnalyzeRequest(String url, String lang, String user_prompt) {}
 
     public record AnalyzeResponse(
             String url,
@@ -34,8 +34,8 @@ public class VideoAnalyzerClient {
         this.analyzeUrl = u;
     }
 
-    public AnalyzeResponse analyze(String url, String lang) throws Exception {
-        AnalyzeRequest payload = new AnalyzeRequest(url, lang);
+    public AnalyzeResponse analyze(String url, String lang, String userPrompt) throws Exception {
+        AnalyzeRequest payload = new AnalyzeRequest(url, lang, userPrompt);
         String json = om.writeValueAsString(payload);
 
         Request req = new Request.Builder()

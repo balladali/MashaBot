@@ -16,7 +16,8 @@ import java.util.regex.Pattern;
 public class VideoAnalyzeHandler implements MessageHandler {
     private static final int TG_LIMIT = 4096;
     private static final Pattern YT_URL = Pattern.compile("(https?://(?:www\\.)?(?:youtube\\.com/(?:watch\\?v=[^\\s&]+[^\\s]*|shorts/[^\\s?]+[^\\s]*)|youtu\\.be/[^\\s?]+[^\\s]*))", Pattern.CASE_INSENSITIVE);
-    private static final Pattern ANALYZE_TRIGGER = Pattern.compile("(проанализир(?:уй|овать|уйте)|анализ(?:ируй|ировать|)|о\\s*ч[её]м\\s*видео)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Pattern BOT_TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Pattern ANALYZE_TRIGGER = Pattern.compile("(проанализир(?:уй|овать|уйте)|анализ(?:ируй|ировать|)?)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     private final VideoAnalyzerClient client;
 
@@ -29,11 +30,13 @@ public class VideoAnalyzeHandler implements MessageHandler {
         String ytUrl = extractYoutubeUrlFromMessageOrReply(entity);
         if (ytUrl == null) return;
 
+        String userPrompt = extractUserPrompt(entity);
+
         try {
             sendTyping(entity);
             sendAnswer(entity, "Секунду, разбираю видео по субтитрам…");
 
-            VideoAnalyzerClient.AnalyzeResponse res = client.analyze(ytUrl, "ru,en");
+            VideoAnalyzerClient.AnalyzeResponse res = client.analyze(ytUrl, "ru,en", userPrompt);
             String answer = formatResult(res);
             sendAnswer(entity, answer);
         } catch (Exception e) {
@@ -53,6 +56,23 @@ public class VideoAnalyzeHandler implements MessageHandler {
         return text != null && ANALYZE_TRIGGER.matcher(text).find();
     }
 
+    static boolean isAddressedToBot(String text) {
+        return text != null && BOT_TRIGGER.matcher(text).find();
+    }
+
+    static String extractUserPrompt(TelegramMessage message) {
+        String text = message != null ? message.getText() : null;
+        if (text == null) return "проанализируй видео";
+
+        String withoutTrigger = BOT_TRIGGER.matcher(text).replaceFirst("").trim();
+        String withoutUrl = YT_URL.matcher(withoutTrigger).replaceAll("").trim();
+
+        if (withoutUrl.isBlank()) {
+            return "проанализируй видео";
+        }
+        return withoutUrl;
+    }
+
     static String extractYoutubeUrlFromMessageOrReply(TelegramMessage message) {
         if (message == null) return null;
 
@@ -70,7 +90,7 @@ public class VideoAnalyzeHandler implements MessageHandler {
     public boolean needHandle(TelegramMessage message) {
         if (message == null || message.getText() == null) return false;
         String text = message.getText();
-        return hasAnalyzeTrigger(text) && extractYoutubeUrlFromMessageOrReply(message) != null;
+        return isAddressedToBot(text) && extractYoutubeUrlFromMessageOrReply(message) != null;
     }
 
     private String formatResult(VideoAnalyzerClient.AnalyzeResponse res) {
