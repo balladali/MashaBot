@@ -35,7 +35,6 @@ public class VideoAnalyzeHandler implements MessageHandler {
 
         try {
             sendTyping(entity);
-            sendAnswer(entity, "Секунду, разбираю видео по субтитрам…");
 
             VideoAnalyzerClient.AnalyzeResponse res = client.analyze(ytUrl, "ru,en", userPrompt);
             String answer = formatResult(res);
