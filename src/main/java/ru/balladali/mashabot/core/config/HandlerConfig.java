@@ -35,18 +35,21 @@ public class HandlerConfig {
     }
 
     @Autowired
+    @Order(4)
     @Bean("currencyConvertHandler")
     public CurrencyConvertHandler currencyConvertHandler(ExchangeRateClient exchangeRateClient) {
         return new CurrencyConvertHandler(exchangeRateClient);
     }
 
     @Autowired
+    @Order(3)
     @Bean("gptConversationHandler")
     public GptConversationHandler gptConversationHandler(ChatGptClient client, MashaProperties mashaProperties) {
         return new GptConversationHandler(client, mashaProperties.persona());
     }
 
     @Autowired
+    @Order(2)
     @Bean("videoAnalyzeHandler")
     public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client) {
         return new VideoAnalyzeHandler(client);
