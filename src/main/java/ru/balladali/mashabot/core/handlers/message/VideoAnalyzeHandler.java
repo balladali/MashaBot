@@ -1,6 +1,7 @@
 package ru.balladali.mashabot.core.handlers.message;
 
 import org.telegram.telegrambots.meta.api.methods.ActionType;
+import org.telegram.telegrambots.meta.api.methods.ParseMode;
 import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -118,8 +119,10 @@ public class VideoAnalyzeHandler implements MessageHandler {
         String t = (answer == null) ? "" : answer.strip();
         if (t.isEmpty()) return;
 
-        for (String part : splitForTelegram(t, TG_LIMIT)) {
+        String md = toTelegramMarkdownV2(t);
+        for (String part : splitForTelegram(md, TG_LIMIT)) {
             SendMessage msg = new SendMessage(messageEntity.getChatId(), part);
+            msg.setParseMode(ParseMode.MARKDOWNV2);
             try {
                 messageEntity.getClient().execute(msg);
             } catch (TelegramApiException e) {
@@ -127,6 +130,37 @@ public class VideoAnalyzeHandler implements MessageHandler {
                 break;
             }
         }
+    }
+
+    private static String toTelegramMarkdownV2(String text) {
+        String normalized = text.replace("\r\n", "\n").replace('\r', '\n');
+        String[] lines = normalized.split("\n", -1);
+        StringBuilder out = new StringBuilder();
+
+        for (int i = 0; i < lines.length; i++) {
+            String line = lines[i];
+            String l = line.replace("```", "").trim();
+            l = l.replaceFirst("^#{1,6}\\s+", "");
+            l = l.replaceFirst("^\\d+[\\).]\\s+", "• ");
+            l = l.replaceFirst("^[-*]\\s+", "• ");
+
+            boolean headerLike = !l.startsWith("• ") && l.endsWith(":") && l.length() <= 80;
+            String escaped = escapeMarkdownV2(l);
+            if (headerLike && !escaped.isBlank()) {
+                escaped = "*" + escaped + "*";
+            }
+
+            out.append(escaped);
+            if (i < lines.length - 1) out.append('\n');
+        }
+
+        return out.toString().replaceAll("\n{3,}", "\n\n").trim();
+    }
+
+    private static String escapeMarkdownV2(String s) {
+        if (s == null || s.isEmpty()) return "";
+        String x = s.replace("\\", "\\\\");
+        return x.replaceAll("([_\\*\\[\\]\\(\\)~`>#+\\-=|\\{\\}\\.!])", "\\\\$1");
     }
 
     private static List<String> splitForTelegram(String s, int limit) {
