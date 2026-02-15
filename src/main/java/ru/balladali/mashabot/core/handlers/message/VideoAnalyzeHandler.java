@@ -107,16 +107,20 @@ public class VideoAnalyzeHandler implements MessageHandler {
             return sb.toString().trim();
         }
 
-        sb.append("Коротко по видео:\n");
+        if (res.answer() != null && !res.answer().isBlank()) {
+            return res.answer().trim();
+        }
+
+        sb.append("🎬 Коротко по видео:\n");
         if (res.summary() != null && !res.summary().isBlank()) {
             sb.append(res.summary()).append("\n\n");
         }
 
         List<String> points = res.key_points();
         if (points != null && !points.isEmpty()) {
-            sb.append("Ключевые пункты:\n");
-            for (int i = 0; i < points.size(); i++) {
-                sb.append(i + 1).append(") ").append(points.get(i)).append("\n");
+            sb.append("📌 Ключевые пункты:\n");
+            for (String p : points) {
+                sb.append("• ").append(p).append("\n");
             }
         }
 

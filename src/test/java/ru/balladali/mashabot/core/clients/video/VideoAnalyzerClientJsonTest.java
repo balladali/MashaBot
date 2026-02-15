@@ -10,7 +10,7 @@ class VideoAnalyzerClientJsonTest {
     void analyzeResponseRecord_shouldMapSnakeCaseKeyPointsAccessor() {
         // Компиляционный smoke-test: проверяем accessor name для key_points
         VideoAnalyzerClient.AnalyzeResponse r = new VideoAnalyzerClient.AnalyzeResponse(
-                "u", "ok", "s", java.util.List.of("a", "b"), "t"
+                "u", "ok", "a", "s", java.util.List.of("a", "b"), "t"
         );
         assertTrue(r.key_points().size() == 2);
     }

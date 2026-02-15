@@ -15,6 +15,7 @@ public class VideoAnalyzerClient {
     public record AnalyzeResponse(
             String url,
             String status,
+            String answer,
             String summary,
             List<String> key_points,
             String transcript
