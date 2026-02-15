@@ -77,4 +77,13 @@ class VideoAnalyzeHandlerTest {
 
         assertEquals("расскажи 5 основных моментов из этого видео", VideoAnalyzeHandler.extractUserPrompt(tm));
     }
+
+    @Test
+    void extractUserPrompt_returnsNullWhenOnlyTriggerAndUrl() {
+        Message msg = new Message();
+        msg.setText("Маша, https://youtu.be/5uyCAExOoUk");
+        TelegramMessage tm = new TelegramMessage(msg, null);
+
+        assertNull(VideoAnalyzeHandler.extractUserPrompt(tm));
+    }
 }
