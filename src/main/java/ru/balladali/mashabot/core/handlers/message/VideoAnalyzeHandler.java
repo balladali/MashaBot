@@ -62,13 +62,13 @@ public class VideoAnalyzeHandler implements MessageHandler {
 
     static String extractUserPrompt(TelegramMessage message) {
         String text = message != null ? message.getText() : null;
-        if (text == null) return null;
+        if (text == null) return "проанализируй видео";
 
         String withoutTrigger = BOT_TRIGGER.matcher(text).replaceFirst("").trim();
         String withoutUrl = YT_URL.matcher(withoutTrigger).replaceAll("").trim();
 
         if (withoutUrl.isBlank()) {
-            return null;
+            return "проанализируй видео";
         }
         return withoutUrl;
     }
