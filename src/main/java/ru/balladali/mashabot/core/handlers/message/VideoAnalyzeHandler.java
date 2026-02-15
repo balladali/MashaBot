@@ -145,16 +145,40 @@ public class VideoAnalyzeHandler implements MessageHandler {
             l = l.replaceFirst("^[-*]\\s+", "• ");
 
             boolean headerLike = !l.startsWith("• ") && l.endsWith(":") && l.length() <= 80;
-            String escaped = escapeMarkdownV2(l);
-            if (headerLike && !escaped.isBlank()) {
-                escaped = "*" + escaped + "*";
+            String formatted = formatInlineMarkdownV2(l);
+            if (headerLike && !formatted.isBlank()) {
+                formatted = "*" + escapeMarkdownV2(l) + "*";
             }
 
-            out.append(escaped);
+            out.append(formatted);
             if (i < lines.length - 1) out.append('\n');
         }
 
         return out.toString().replaceAll("\n{3,}", "\n\n").trim();
+    }
+
+    private static String formatInlineMarkdownV2(String s) {
+        if (s == null || s.isEmpty()) return "";
+
+        Pattern bold = Pattern.compile("\\*\\*(.+?)\\*\\*");
+        Matcher m = bold.matcher(s);
+        StringBuilder out = new StringBuilder();
+        int last = 0;
+
+        while (m.find()) {
+            String plain = s.substring(last, m.start());
+            if (!plain.isEmpty()) out.append(escapeMarkdownV2(plain));
+
+            String boldText = m.group(1);
+            out.append("*").append(escapeMarkdownV2(boldText)).append("*");
+            last = m.end();
+        }
+
+        if (last < s.length()) {
+            out.append(escapeMarkdownV2(s.substring(last)));
+        }
+
+        return out.toString();
     }
 
     private static String escapeMarkdownV2(String s) {
