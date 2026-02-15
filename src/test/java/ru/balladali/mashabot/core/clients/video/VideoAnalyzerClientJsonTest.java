@@ -2,16 +2,15 @@ package ru.balladali.mashabot.core.clients.video;
 
 import org.junit.jupiter.api.Test;
 
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class VideoAnalyzerClientJsonTest {
 
     @Test
-    void analyzeResponseRecord_shouldMapSnakeCaseKeyPointsAccessor() {
-        // Компиляционный smoke-test: проверяем accessor name для key_points
+    void analyzeResponseRecord_shouldExposeAnswerAccessor() {
         VideoAnalyzerClient.AnalyzeResponse r = new VideoAnalyzerClient.AnalyzeResponse(
-                "u", "ok", "a", "s", java.util.List.of("a", "b"), "t"
+                "u", "ok", "a", "t"
         );
-        assertTrue(r.key_points().size() == 2);
+        assertEquals("a", r.answer());
     }
 }

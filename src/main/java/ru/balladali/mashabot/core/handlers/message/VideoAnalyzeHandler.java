@@ -96,35 +96,21 @@ public class VideoAnalyzeHandler implements MessageHandler {
     private String formatResult(VideoAnalyzerClient.AnalyzeResponse res) {
         if (res == null) return "Сервис вернул пустой ответ.";
 
-        StringBuilder sb = new StringBuilder();
         String status = Optional.ofNullable(res.status()).orElse("unknown");
+        String answer = Optional.ofNullable(res.answer()).orElse("").trim();
 
         if (!"ok".equalsIgnoreCase(status)) {
-            sb.append("Статус: ").append(status).append("\n");
-            if (res.summary() != null && !res.summary().isBlank()) {
-                sb.append(res.summary());
+            if (!answer.isBlank()) {
+                return "Статус: " + status + "\n" + answer;
             }
-            return sb.toString().trim();
+            return "Статус: " + status;
         }
 
-        if (res.answer() != null && !res.answer().isBlank()) {
-            return res.answer().trim();
+        if (!answer.isBlank()) {
+            return answer;
         }
 
-        sb.append("🎬 Коротко по видео:\n");
-        if (res.summary() != null && !res.summary().isBlank()) {
-            sb.append(res.summary()).append("\n\n");
-        }
-
-        List<String> points = res.key_points();
-        if (points != null && !points.isEmpty()) {
-            sb.append("📌 Ключевые пункты:\n");
-            for (String p : points) {
-                sb.append("• ").append(p).append("\n");
-            }
-        }
-
-        return sb.toString().trim();
+        return "Анализ завершён, но ответ пустой.";
     }
 
     @Override

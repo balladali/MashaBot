@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import okhttp3.*;
 
 import java.time.Duration;
-import java.util.List;
 
 public class VideoAnalyzerClient {
 
@@ -16,8 +15,6 @@ public class VideoAnalyzerClient {
             String url,
             String status,
             String answer,
-            String summary,
-            List<String> key_points,
             String transcript
     ) {}
 
