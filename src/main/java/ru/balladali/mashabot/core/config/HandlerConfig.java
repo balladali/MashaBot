@@ -23,8 +23,8 @@ public class HandlerConfig {
 
     @Bean(name = "conversationHandler")
     @Order(Integer.MAX_VALUE)
-    public ConversationHandler getConversationHandler(VoiceReplyService voiceReplyService) {
-        return new ConversationHandler(voiceReplyService);
+    public ConversationHandler getConversationHandler() {
+        return new ConversationHandler();
     }
 
     @Autowired
@@ -51,8 +51,8 @@ public class HandlerConfig {
     @Autowired
     @Order(2)
     @Bean("videoAnalyzeHandler")
-    public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client, VoiceReplyService voiceReplyService) {
-        return new VideoAnalyzeHandler(client, voiceReplyService);
+    public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client) {
+        return new VideoAnalyzeHandler(client);
     }
 
     @Bean

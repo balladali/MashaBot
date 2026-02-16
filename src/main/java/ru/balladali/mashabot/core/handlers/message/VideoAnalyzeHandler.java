@@ -6,7 +6,6 @@ import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.video.VideoAnalyzerClient;
-import ru.balladali.mashabot.core.services.VoiceReplyService;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 
 import java.util.ArrayList;
@@ -22,11 +21,9 @@ public class VideoAnalyzeHandler implements MessageHandler {
     private static final Pattern ANALYZE_TRIGGER = Pattern.compile("(проанализир(?:уй|овать|уйте)|анализ(?:ируй|ировать|)?)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     private final VideoAnalyzerClient client;
-    private final VoiceReplyService voiceReplyService;
 
-    public VideoAnalyzeHandler(VideoAnalyzerClient client, VoiceReplyService voiceReplyService) {
+    public VideoAnalyzeHandler(VideoAnalyzerClient client) {
         this.client = client;
-        this.voiceReplyService = voiceReplyService;
     }
 
     @Override
@@ -120,11 +117,6 @@ public class VideoAnalyzeHandler implements MessageHandler {
     public void sendAnswer(TelegramMessage messageEntity, String answer) {
         String t = (answer == null) ? "" : answer.strip();
         if (t.isEmpty()) return;
-
-        VoiceReplyService.VoicePlan plan = voiceReplyService.buildPlan(t);
-        if (plan.sendVoice() && voiceReplyService.sendVoice(messageEntity, plan.voiceText()) && !plan.alsoSendText()) {
-            return;
-        }
 
         String md = toTelegramMarkdownV2(t);
         for (String part : splitForTelegram(md, TG_LIMIT)) {

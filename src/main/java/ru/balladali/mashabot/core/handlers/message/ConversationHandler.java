@@ -11,7 +11,6 @@ import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.entity.BotContext;
-import ru.balladali.mashabot.core.services.VoiceReplyService;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 import java.util.*;
 import java.util.regex.Pattern;
@@ -27,11 +26,6 @@ public class ConversationHandler implements MessageHandler {
 
 
     private Map<String, BotContext> contextMap = new HashMap<>();
-    private final VoiceReplyService voiceReplyService;
-
-    public ConversationHandler(VoiceReplyService voiceReplyService) {
-        this.voiceReplyService = voiceReplyService;
-    }
 
     @Override
     public void handle(TelegramMessage entity) {
@@ -50,15 +44,7 @@ public class ConversationHandler implements MessageHandler {
 
     @Override
     public void sendAnswer(TelegramMessage messageEntity, String answer) {
-        String t = answer == null ? "" : answer.strip();
-        if (t.isEmpty()) return;
-
-        VoiceReplyService.VoicePlan plan = voiceReplyService.buildPlan(t);
-        if (plan.sendVoice() && voiceReplyService.sendVoice(messageEntity, plan.voiceText()) && !plan.alsoSendText()) {
-            return;
-        }
-
-        SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), t);
+        SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
         try {
             messageEntity.getClient().execute(sendMessage);
         } catch (TelegramApiException e) {
