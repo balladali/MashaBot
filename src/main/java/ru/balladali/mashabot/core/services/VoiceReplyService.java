@@ -1,7 +1,7 @@
 package ru.balladali.mashabot.core.services;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.telegram.telegrambots.meta.api.methods.send.SendAudio;
+import org.telegram.telegrambots.meta.api.methods.send.SendVoice;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.telegram.TelegramMessage;
@@ -73,9 +73,9 @@ public class VoiceReplyService {
         try (InputStream is = speechService.synthesize(text)) {
             if (is == null) return false;
 
-            InputFile audioFile = new InputFile(is, "answer.mp3");
-            SendAudio sendAudio = new SendAudio(messageEntity.getChatId(), audioFile);
-            messageEntity.getClient().execute(sendAudio);
+            InputFile voiceFile = new InputFile(is, "answer.mp3");
+            SendVoice sendVoice = new SendVoice(messageEntity.getChatId(), voiceFile);
+            messageEntity.getClient().execute(sendVoice);
 
             rotateQuotaIfNeeded();
             usedToday += 1;
