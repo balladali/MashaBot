@@ -3,6 +3,12 @@ server:
   port: ${PORT:8080}
 bot:
   voice-mode: ${VOICE_MODE:false}
+voice:
+  provider: ${VOICE_PROVIDER:elevenlabs}   # elevenlabs | yandex
+  max-chars: ${VOICE_MAX_CHARS:450}
+  daily-limit: ${VOICE_DAILY_LIMIT:20}
+  min-interval-sec: ${VOICE_MIN_INTERVAL_SEC:20}
+  summary-on-long: ${VOICE_SUMMARY_ON_LONG:true}
 proxy:
   type: ${PROXY_TYPE:NONE}            # NONE | HTTP | SOCKS
   host: ${PROXY_HOST:}
@@ -20,6 +26,10 @@ credential:
       key: ${YANDEX_TRANSLATE_API_KEY:}
     speech:
       key: ${YANDEX_SPEECH_API_KEY:}
+  elevenlabs:
+    api-key: ${ELEVENLABS_API_KEY:}
+    voice-id: ${ELEVENLABS_VOICE_ID:}
+    model-id: ${ELEVENLABS_MODEL_ID:eleven_multilingual_v2}
 ping-job:
   enabled: ${PING_JOB_ENABLED:false}
 clients:

@@ -1,7 +1,6 @@
 package ru.balladali.mashabot.core.handlers.message;
 
 import org.json.JSONObject;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -10,21 +9,14 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.send.SendVoice;
-import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.entity.BotContext;
-import ru.balladali.mashabot.core.services.YandexSpeechService;
+import ru.balladali.mashabot.core.services.VoiceReplyService;
 import ru.balladali.mashabot.telegram.TelegramMessage;
-
-import java.io.InputStream;
 import java.util.*;
 import java.util.regex.Pattern;
 
 public class ConversationHandler implements MessageHandler {
-
-    @Value("${bot.voice-mode}")
-    boolean voiceModeEnabled;
 
     private final String ANSWER_URL = "http://p-bot.ru/api/getAnswer";
     private final String PUBLIC_API = "public-api";
@@ -35,11 +27,10 @@ public class ConversationHandler implements MessageHandler {
 
 
     private Map<String, BotContext> contextMap = new HashMap<>();
+    private final VoiceReplyService voiceReplyService;
 
-    private YandexSpeechService yandexSpeechService;
-
-    public ConversationHandler(YandexSpeechService yandexSpeechService) {
-        this.yandexSpeechService = yandexSpeechService;
+    public ConversationHandler(VoiceReplyService voiceReplyService) {
+        this.voiceReplyService = voiceReplyService;
     }
 
     @Override
@@ -48,11 +39,7 @@ public class ConversationHandler implements MessageHandler {
         String chatId = entity.getChatId();
         message = TRIGGER.matcher(message).replaceFirst("").trim();
         String answer = getAnswer(message, chatId);
-        if (voiceModeEnabled) {
-            sendVoiceAnswer(entity, answer);
-        } else {
-            sendAnswer(entity, answer);
-        }
+        sendAnswer(entity, answer);
     }
 
     @Override
@@ -63,23 +50,18 @@ public class ConversationHandler implements MessageHandler {
 
     @Override
     public void sendAnswer(TelegramMessage messageEntity, String answer) {
-        SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
+        String t = answer == null ? "" : answer.strip();
+        if (t.isEmpty()) return;
+
+        VoiceReplyService.VoicePlan plan = voiceReplyService.buildPlan(t);
+        if (plan.sendVoice() && voiceReplyService.sendVoice(messageEntity, plan.voiceText()) && !plan.alsoSendText()) {
+            return;
+        }
+
+        SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), t);
         try {
             messageEntity.getClient().execute(sendMessage);
         } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void sendVoiceAnswer(TelegramMessage messageEntity, String answer) {
-        try (InputStream is = yandexSpeechService.synthesize(answer)) {
-            // указываем имя файла с правильным расширением
-            InputFile voiceFile = new InputFile(is, "answer.ogg");
-            SendVoice sendVoice = new SendVoice(messageEntity.getChatId(), voiceFile);
-
-            messageEntity.getClient().execute(sendVoice);
-
-        } catch (Exception e) {
             e.printStackTrace();
         }
     }

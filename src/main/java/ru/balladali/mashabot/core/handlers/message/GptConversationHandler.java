@@ -6,6 +6,7 @@ import org.telegram.telegrambots.meta.api.methods.ActionType;
 import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
+import ru.balladali.mashabot.core.services.VoiceReplyService;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 
 import java.util.ArrayList;
@@ -15,12 +16,14 @@ import java.util.regex.Pattern;
 
 public class GptConversationHandler implements MessageHandler {
     private final ChatGptClient chat;
+    private final VoiceReplyService voiceReplyService;
     private final String personaSystemPrompt;
     private static final int TG_LIMIT = 4096;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
-    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt) {
+    public GptConversationHandler(ChatGptClient chat, VoiceReplyService voiceReplyService, String personaSystemPrompt) {
         this.chat = chat;
+        this.voiceReplyService = voiceReplyService;
         this.personaSystemPrompt = personaSystemPrompt;
     }
 
@@ -83,6 +86,11 @@ public class GptConversationHandler implements MessageHandler {
         String t = (answer == null) ? "" : answer.strip();
         if (t.isEmpty()) {
             // Ничего не шлём, чтобы не ловить TelegramApiValidationException
+            return;
+        }
+
+        VoiceReplyService.VoicePlan plan = voiceReplyService.buildPlan(t);
+        if (plan.sendVoice() && voiceReplyService.sendVoice(messageEntity, plan.voiceText()) && !plan.alsoSendText()) {
             return;
         }
 

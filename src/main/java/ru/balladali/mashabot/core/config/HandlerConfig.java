@@ -10,7 +10,7 @@ import ru.balladali.mashabot.core.clients.exchange.ExchangeRateClient;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
 import ru.balladali.mashabot.core.clients.video.VideoAnalyzerClient;
 import ru.balladali.mashabot.core.handlers.message.*;
-import ru.balladali.mashabot.core.services.YandexSpeechService;
+import ru.balladali.mashabot.core.services.VoiceReplyService;
 
 import javax.annotation.Nonnull;
 import java.util.ArrayList;
@@ -23,8 +23,8 @@ public class HandlerConfig {
 
     @Bean(name = "conversationHandler")
     @Order(Integer.MAX_VALUE)
-    public ConversationHandler getConversationHandler(YandexSpeechService yandexSpeechService) {
-        return new ConversationHandler(yandexSpeechService);
+    public ConversationHandler getConversationHandler(VoiceReplyService voiceReplyService) {
+        return new ConversationHandler(voiceReplyService);
     }
 
     @Autowired
@@ -44,15 +44,15 @@ public class HandlerConfig {
     @Autowired
     @Order(3)
     @Bean("gptConversationHandler")
-    public GptConversationHandler gptConversationHandler(ChatGptClient client, MashaProperties mashaProperties) {
-        return new GptConversationHandler(client, mashaProperties.persona());
+    public GptConversationHandler gptConversationHandler(ChatGptClient client, VoiceReplyService voiceReplyService, MashaProperties mashaProperties) {
+        return new GptConversationHandler(client, voiceReplyService, mashaProperties.persona());
     }
 
     @Autowired
     @Order(2)
     @Bean("videoAnalyzeHandler")
-    public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client) {
-        return new VideoAnalyzeHandler(client);
+    public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client, VoiceReplyService voiceReplyService) {
+        return new VideoAnalyzeHandler(client, voiceReplyService);
     }
 
     @Bean
