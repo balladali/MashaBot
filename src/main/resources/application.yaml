@@ -8,7 +8,7 @@ voice:
   max-chars: ${VOICE_MAX_CHARS:450}
   daily-limit: ${VOICE_DAILY_LIMIT:20}
   min-interval-sec: ${VOICE_MIN_INTERVAL_SEC:20}
-  summary-on-long: ${VOICE_SUMMARY_ON_LONG:true}
+  summary-on-long: ${VOICE_SUMMARY_ON_LONG:false}
 proxy:
   type: ${PROXY_TYPE:NONE}            # NONE | HTTP | SOCKS
   host: ${PROXY_HOST:}

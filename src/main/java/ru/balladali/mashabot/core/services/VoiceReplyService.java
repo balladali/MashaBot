@@ -29,7 +29,7 @@ public class VoiceReplyService {
     @Value("${voice.min-interval-sec:20}")
     private int minIntervalSec;
 
-    @Value("${voice.summary-on-long:true}")
+    @Value("${voice.summary-on-long:false}")
     private boolean summaryOnLong;
 
     private LocalDate quotaDay = LocalDate.now(ZoneOffset.UTC);
@@ -56,15 +56,9 @@ public class VoiceReplyService {
             return new VoicePlan(true, t, false);
         }
 
-        if (!summaryOnLong) {
-            return new VoicePlan(false, "", false);
-        }
-
-        String shortText = summarizeForVoice(t, maxChars);
-        if (shortText.isBlank()) {
-            return new VoicePlan(false, "", false);
-        }
-        return new VoicePlan(true, shortText, true);
+        // Hard limit policy: if response is longer than maxChars,
+        // do not send voice and do not trim original text message.
+        return new VoicePlan(false, "", false);
     }
 
     public synchronized boolean sendVoice(TelegramMessage messageEntity, String text) {
