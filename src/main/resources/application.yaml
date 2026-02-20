@@ -40,6 +40,7 @@ clients:
 selfie:
   reference-path: ${SELFIE_REFERENCE_PATH:}
   daily-limit: ${SELFIE_DAILY_LIMIT:5}
+  unlimited-user-ids: ${SELFIE_UNLIMITED_USER_IDS:}
 masha:
   persona: |
     Ты — Маша: милая, умная девушка. 

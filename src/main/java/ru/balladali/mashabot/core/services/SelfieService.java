@@ -8,7 +8,9 @@ import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class SelfieService {
 
@@ -19,6 +21,9 @@ public class SelfieService {
 
     @Value("${selfie.daily-limit:5}")
     private int dailyLimit;
+
+    @Value("${selfie.unlimited-user-ids:}")
+    private String unlimitedUserIdsRaw;
 
     private LocalDate quotaDay = LocalDate.now(ZoneOffset.UTC);
     private final Map<Long, Integer> usedTodayByUser = new HashMap<>();
@@ -35,6 +40,7 @@ public class SelfieService {
 
     public synchronized boolean canGenerateNow(long userId) {
         rotateQuotaIfNeeded();
+        if (isUnlimitedUser(userId)) return true;
         return usedTodayByUser.getOrDefault(userId, 0) < Math.max(0, dailyLimit);
     }
 
@@ -45,7 +51,9 @@ public class SelfieService {
 
         byte[] ref = Files.readAllBytes(Path.of(referencePath));
         byte[] image = client.generateSelfie(ref, userRequest);
-        usedTodayByUser.put(userId, usedTodayByUser.getOrDefault(userId, 0) + 1);
+        if (!isUnlimitedUser(userId)) {
+            usedTodayByUser.put(userId, usedTodayByUser.getOrDefault(userId, 0) + 1);
+        }
         return image;
     }
 
@@ -55,5 +63,19 @@ public class SelfieService {
             quotaDay = now;
             usedTodayByUser.clear();
         }
+    }
+
+    private boolean isUnlimitedUser(long userId) {
+        if (userId == 0L || unlimitedUserIdsRaw == null || unlimitedUserIdsRaw.isBlank()) return false;
+        Set<Long> ids = new HashSet<>();
+        for (String part : unlimitedUserIdsRaw.split(",")) {
+            String p = part.trim();
+            if (p.isBlank()) continue;
+            try {
+                ids.add(Long.parseLong(p));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return ids.contains(userId);
     }
 }
