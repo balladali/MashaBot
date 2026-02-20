@@ -18,12 +18,19 @@ public class FalSelfieClient {
     private final ObjectMapper om;
     private final String endpoint;
     private final String apiKey;
+    private final String promptBase;
+    private final String promptWithUserScene;
+    private final String promptWithRandomScene;
 
-    public FalSelfieClient(OkHttpClient httpClient, String endpoint, String apiKey, Duration timeout) {
+    public FalSelfieClient(OkHttpClient httpClient, String endpoint, String apiKey, Duration timeout,
+                           String promptBase, String promptWithUserScene, String promptWithRandomScene) {
         this.http = httpClient.newBuilder().callTimeout(timeout).build();
         this.om = new ObjectMapper();
         this.endpoint = endpoint;
         this.apiKey = apiKey;
+        this.promptBase = promptBase;
+        this.promptWithUserScene = promptWithUserScene;
+        this.promptWithRandomScene = promptWithRandomScene;
     }
 
     public byte[] generateSelfie(byte[] referenceImage, String userRequest) throws Exception {
@@ -90,7 +97,7 @@ public class FalSelfieClient {
         return null;
     }
 
-    private static String buildPrompt(String userRequest) {
+    private String buildPrompt(String userRequest) {
         List<String> scenes = List.of(
                 "in a cozy apartment near a window with soft daylight",
                 "on a city street in natural daylight with candid vibe",
@@ -100,23 +107,30 @@ public class FalSelfieClient {
         );
         String req = userRequest == null ? "" : userRequest.strip();
         boolean hasExplicitScene = hasExplicitSceneHint(req);
-        String scene = hasExplicitScene ? "" : scenes.get(new Random().nextInt(scenes.size()));
+        String scene = scenes.get(new Random().nextInt(scenes.size()));
 
-        String base = "Realistic smartphone selfie of the same woman as in the reference image. " +
-                "Photorealistic, natural skin texture, casual human vibe, candid shot as if taken right now. " +
-                "No stylization, no illustration, no CGI, no text overlay. " +
-                "Appearance, outfit and styling must match the scene, weather and season naturally. " +
-                "Avoid mismatches like summer clothes in winter scenes.";
+        String base = (promptBase == null || promptBase.isBlank())
+                ? "Realistic smartphone selfie of the same woman as in the reference image. " +
+                  "Photorealistic, natural skin texture, casual human vibe, candid shot as if taken right now. " +
+                  "No stylization, no illustration, no CGI, no text overlay. " +
+                  "Appearance, outfit and styling must match the scene, weather and season naturally. " +
+                  "Avoid mismatches like summer clothes in winter scenes."
+                : promptBase;
 
         if (hasExplicitScene) {
-            return base + " Follow the user's requested scene/location as top priority. " +
-                    "User request: " + req;
+            String tpl = (promptWithUserScene == null || promptWithUserScene.isBlank())
+                    ? "{base} Follow the user's requested scene/location as top priority. User request: {user_request}"
+                    : promptWithUserScene;
+            return tpl.replace("{base}", base)
+                    .replace("{user_request}", req);
         }
 
-        if (!req.isBlank()) {
-            return base + " Scene: " + scene + ". User request to follow if possible (without conflicting with scene realism): " + req;
-        }
-        return base + " Scene: " + scene + ".";
+        String tpl = (promptWithRandomScene == null || promptWithRandomScene.isBlank())
+                ? "{base} Scene: {scene}. User request to follow if possible (without conflicting with scene realism): {user_request}"
+                : promptWithRandomScene;
+        return tpl.replace("{base}", base)
+                .replace("{scene}", scene)
+                .replace("{user_request}", req);
     }
 
     private static boolean hasExplicitSceneHint(String req) {

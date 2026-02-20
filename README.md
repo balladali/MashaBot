@@ -41,6 +41,9 @@ docker compose down
 - `SELFIE_REFERENCE_PATH` — путь к референсу внутри контейнера (монтируется read-only)
 - `SELFIE_DAILY_LIMIT` — лимит генераций селфи в день на одного пользователя
 - `FAVOURITE_USER_IDS` — список Telegram user id без лимита, через запятую
+- `SELFIE_PROMPT_BASE` — базовый текст промпта генерации селфи
+- `SELFIE_PROMPT_WITH_USER_SCENE` — шаблон, когда пользователь явно задал сцену (`{base}`, `{user_request}`)
+- `SELFIE_PROMPT_WITH_RANDOM_SCENE` — шаблон, когда сцена выбирается случайно (`{base}`, `{scene}`, `{user_request}`)
 
 Логика:
 - Если референса нет — мягкий человеческий отказ (без технических деталей)
