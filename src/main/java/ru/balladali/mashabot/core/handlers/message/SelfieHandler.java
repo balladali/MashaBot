@@ -32,14 +32,15 @@ public class SelfieHandler implements MessageHandler {
     public void handle(TelegramMessage entity) {
         String explicitRequest = extractRequest(entity != null ? entity.getText() : null);
         String contextualRequest = buildContextualRequest(entity, explicitRequest);
+        long userId = extractUserId(entity);
 
         if (!selfieService.hasReference()) {
-            sendAnswer(entity, "Я бы с радостью, но сейчас у меня нет референса внешности 🙈");
+            sendAnswer(entity, "Я сейчас не в настроении фоткаться 🙈");
             return;
         }
 
-        if (!selfieService.canGenerateNow()) {
-            sendAnswer(entity, "Я сейчас занята и не могу сфоткаться 🙏");
+        if (!selfieService.canGenerateNow(userId)) {
+            sendAnswer(entity, "Ты уже и так много моих селфи получил, хватит уже тебе 😌");
             return;
         }
 
@@ -47,7 +48,7 @@ public class SelfieHandler implements MessageHandler {
         sendAnswer(entity, "Подожди минуточку, сейчас сфоткаюсь 📸");
 
         try {
-            byte[] image = selfieService.generate(contextualRequest);
+            byte[] image = selfieService.generate(userId, contextualRequest);
             sendPhoto(entity, image, "Держи 💫");
         } catch (Exception e) {
             e.printStackTrace();
@@ -154,6 +155,13 @@ public class SelfieHandler implements MessageHandler {
         } catch (TelegramApiException e) {
             e.printStackTrace();
         }
+    }
+
+    private static long extractUserId(TelegramMessage message) {
+        if (message == null || message.getMessage() == null || message.getMessage().getFrom() == null) {
+            return 0L;
+        }
+        return message.getMessage().getFrom().getId();
     }
 
     private static String extractRequest(String text) {

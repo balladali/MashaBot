@@ -7,6 +7,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.HashMap;
+import java.util.Map;
 
 public class SelfieService {
 
@@ -19,7 +21,7 @@ public class SelfieService {
     private int dailyLimit;
 
     private LocalDate quotaDay = LocalDate.now(ZoneOffset.UTC);
-    private int usedToday = 0;
+    private final Map<Long, Integer> usedTodayByUser = new HashMap<>();
 
     public SelfieService(FalSelfieClient client) {
         this.client = client;
@@ -31,19 +33,19 @@ public class SelfieService {
         return Files.exists(p) && Files.isRegularFile(p);
     }
 
-    public synchronized boolean canGenerateNow() {
+    public synchronized boolean canGenerateNow(long userId) {
         rotateQuotaIfNeeded();
-        return usedToday < Math.max(0, dailyLimit);
+        return usedTodayByUser.getOrDefault(userId, 0) < Math.max(0, dailyLimit);
     }
 
-    public synchronized byte[] generate(String userRequest) throws Exception {
+    public synchronized byte[] generate(long userId, String userRequest) throws Exception {
         rotateQuotaIfNeeded();
-        if (!canGenerateNow()) throw new IllegalStateException("daily_limit_exceeded");
+        if (!canGenerateNow(userId)) throw new IllegalStateException("daily_limit_exceeded");
         if (!hasReference()) throw new IllegalStateException("reference_not_found");
 
         byte[] ref = Files.readAllBytes(Path.of(referencePath));
         byte[] image = client.generateSelfie(ref, userRequest);
-        usedToday += 1;
+        usedTodayByUser.put(userId, usedTodayByUser.getOrDefault(userId, 0) + 1);
         return image;
     }
 
@@ -51,7 +53,7 @@ public class SelfieService {
         LocalDate now = LocalDate.now(ZoneOffset.UTC);
         if (!now.equals(quotaDay)) {
             quotaDay = now;
-            usedToday = 0;
+            usedTodayByUser.clear();
         }
     }
 }
