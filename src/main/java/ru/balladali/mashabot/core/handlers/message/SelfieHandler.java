@@ -15,7 +15,7 @@ import java.util.regex.Pattern;
 public class SelfieHandler implements MessageHandler {
 
     private static final Pattern BOT_TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-    private static final Pattern SELFIE_TRIGGER = Pattern.compile("(селфи|selfie|фотк|фото\\s*меня|сфотк)" , Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final Pattern SELFIE_TRIGGER = Pattern.compile("(селфи|сэлфи|selfie|фотк\\w*|сфотк\\w*|себя|тво(ю|е|ё)\\s+фотк\\w*|тво(е|ё)\\s+селфи)" , Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     private final SelfieService selfieService;
 
