@@ -11,7 +11,7 @@ import ru.balladali.mashabot.core.clients.video.VideoAnalyzerClient;
 import java.time.Duration;
 
 @Configuration
-@EnableConfigurationProperties({ChatGptProperties.class, VideoAnalyzerProperties.class, FalProperties.class})
+@EnableConfigurationProperties({ChatGptProperties.class, VideoAnalyzerProperties.class, FalProperties.class, SelfiePromptProperties.class})
 public class ClientsConfiguration {
     @Bean
     public ChatGptClient chatGptClient(OkHttpClient client, ChatGptProperties props) {
@@ -34,7 +34,7 @@ public class ClientsConfiguration {
     }
 
     @Bean
-    public FalSelfieClient falSelfieClient(OkHttpClient client, FalProperties props,
+    public FalSelfieClient falSelfieClient(OkHttpClient client, FalProperties props, SelfiePromptProperties promptProps,
                                            @org.springframework.beans.factory.annotation.Value("${credential.fal.api-key:}") String apiKey) {
         String base = (props.baseUrl() == null || props.baseUrl().isBlank()) ? "https://fal.run" : props.baseUrl();
         String modelPath = (props.modelPath() == null || props.modelPath().isBlank())
@@ -42,7 +42,10 @@ public class ClientsConfiguration {
                 : props.modelPath();
         String endpoint = base.endsWith("/") ? base + modelPath : base + "/" + modelPath;
         return new FalSelfieClient(client, endpoint, apiKey,
-                Duration.ofSeconds(props.timeoutSec() == null ? 90 : props.timeoutSec()));
+                Duration.ofSeconds(props.timeoutSec() == null ? 90 : props.timeoutSec()),
+                promptProps.base(),
+                promptProps.withUserScene(),
+                promptProps.withRandomScene());
     }
 
 }

@@ -41,6 +41,10 @@ selfie:
   reference-path: ${SELFIE_REFERENCE_PATH:}
   daily-limit: ${SELFIE_DAILY_LIMIT:5}
   unlimited-user-ids: ${FAVOURITE_USER_IDS:}
+  prompt:
+    base: ${SELFIE_PROMPT_BASE:Realistic smartphone selfie of the same woman as in the reference image. Photorealistic, natural skin texture, casual human vibe, candid shot as if taken right now. No stylization, no illustration, no CGI, no text overlay. Appearance, outfit and styling must match the scene, weather and season naturally. Avoid mismatches like summer clothes in winter scenes.}
+    with-user-scene: ${SELFIE_PROMPT_WITH_USER_SCENE:{base} Follow the user's requested scene/location as top priority. User request: {user_request}}
+    with-random-scene: ${SELFIE_PROMPT_WITH_RANDOM_SCENE:{base} Scene: {scene}. User request to follow if possible (without conflicting with scene realism): {user_request}}
 masha:
   persona: |
     Ты — Маша: милая, умная девушка. 
