@@ -40,6 +40,7 @@ docker compose down
 - `HOST_SELFIE_REFERENCE_FILE` — путь к референсу на хосте
 - `SELFIE_REFERENCE_PATH` — путь к референсу внутри контейнера (монтируется read-only)
 - `SELFIE_DAILY_LIMIT` — лимит генераций селфи в день на одного пользователя
+- `SELFIE_UNLIMITED_USER_IDS` — список Telegram user id без лимита, через запятую
 
 Логика:
 - Если референса нет — мягкий человеческий отказ (без технических деталей)

@@ -51,5 +51,6 @@ services:
       FAL_BASE_URL: ${FAL_BASE_URL:-https://fal.run}
       FAL_SELFIE_MODEL_PATH: ${FAL_SELFIE_MODEL_PATH:-fal-ai/flux/dev/image-to-image}
       FAL_TIMEOUT_SEC: ${FAL_TIMEOUT_SEC:-90}
-      SELFIE_REFERENCE_PATH: ${SELFIE_REFERENCE_PATH:-/opt/masha/selfie/reference.jpg}
+      SELFIE_REFERENCE_PATH: ${SELFIE_REFERENCE_PATH:-/app/selfie-reference.jpg}
       SELFIE_DAILY_LIMIT: ${SELFIE_DAILY_LIMIT:-5}
+      SELFIE_UNLIMITED_USER_IDS: ${SELFIE_UNLIMITED_USER_IDS:-}
