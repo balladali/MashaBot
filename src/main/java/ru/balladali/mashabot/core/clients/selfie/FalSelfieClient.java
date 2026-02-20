@@ -98,17 +98,30 @@ public class FalSelfieClient {
                 "at home mirror selfie with natural imperfections",
                 "outdoor park selfie, handheld phone, realistic skin texture"
         );
-        String scene = scenes.get(new Random().nextInt(scenes.size()));
         String req = userRequest == null ? "" : userRequest.strip();
+        boolean hasExplicitScene = hasExplicitSceneHint(req);
+        String scene = hasExplicitScene ? "" : scenes.get(new Random().nextInt(scenes.size()));
 
         String base = "Realistic smartphone selfie of the same woman as in the reference image. " +
                 "Photorealistic, natural skin texture, casual human vibe, candid shot as if taken right now. " +
                 "No stylization, no illustration, no CGI, no text overlay. " +
-                "Scene: " + scene + ".";
+                "Appearance, outfit and styling must match the scene, weather and season naturally. " +
+                "Avoid mismatches like summer clothes in winter scenes.";
+
+        if (hasExplicitScene) {
+            return base + " Follow the user's requested scene/location as top priority. " +
+                    "User request: " + req;
+        }
 
         if (!req.isBlank()) {
-            return base + " User request to follow if possible: " + req;
+            return base + " Scene: " + scene + ". User request to follow if possible (without conflicting with scene realism): " + req;
         }
-        return base;
+        return base + " Scene: " + scene + ".";
+    }
+
+    private static boolean hasExplicitSceneHint(String req) {
+        if (req == null || req.isBlank()) return false;
+        String r = req.toLowerCase();
+        return r.matches(".*(на\\s+кухн|в\\s+кухн|на\\s+улиц|в\\s+парке|в\\s+офисе|дома|в\\s+комнате|в\\s+ванн|в\\s+машин|на\\s+балкон|в\\s+кафе|на\\s+пляж|в\\s+спортзале|в\\s+лесу|зим|лет|осен|весен|снег|дожд|ночью|утром|вечером).*");
     }
 }
