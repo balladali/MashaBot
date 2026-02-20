@@ -35,6 +35,8 @@ services:
       - yt-video-analyzer
     ports:
       - "2468:8080"
+    volumes:
+      - ${HOST_SELFIE_REFERENCE_FILE:-/opt/masha/selfie/reference.jpg}:${SELFIE_REFERENCE_PATH:-/app/selfie-reference.jpg}:ro
     environment:
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
       TG_BOT_NAME: ${TG_BOT_NAME:-MaschaBot}
@@ -45,3 +47,9 @@ services:
       YANDEX_TRANSLATE_API_KEY: ${YANDEX_TRANSLATE_API_KEY:-}
       YANDEX_SPEECH_API_KEY: ${YANDEX_SPEECH_API_KEY:-}
       VIDEO_ANALYZER_URL: ${VIDEO_ANALYZER_URL:-http://yt-video-analyzer:8000/analyze}
+      FAL_API_KEY: ${FAL_API_KEY:-}
+      FAL_BASE_URL: ${FAL_BASE_URL:-https://fal.run}
+      FAL_SELFIE_MODEL_PATH: ${FAL_SELFIE_MODEL_PATH:-fal-ai/flux/dev/image-to-image}
+      FAL_TIMEOUT_SEC: ${FAL_TIMEOUT_SEC:-90}
+      SELFIE_REFERENCE_PATH: ${SELFIE_REFERENCE_PATH:-/opt/masha/selfie/reference.jpg}
+      SELFIE_DAILY_LIMIT: ${SELFIE_DAILY_LIMIT:-5}

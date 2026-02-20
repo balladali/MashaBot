@@ -8,6 +8,7 @@ import ru.balladali.mashabot.core.clients.exchange.ExchangeRateClient;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
 import ru.balladali.mashabot.core.clients.video.VideoAnalyzerClient;
 import ru.balladali.mashabot.core.handlers.message.*;
+import ru.balladali.mashabot.core.services.SelfieService;
 import ru.balladali.mashabot.core.services.YandexSpeechService;
 
 import java.util.ArrayList;
@@ -24,13 +25,13 @@ public class HandlerConfig {
         return new ConversationHandler(yandexSpeechService);
     }
 
-    @Order(4)
+    @Order(5)
     @Bean("currencyConvertHandler")
     public CurrencyConvertHandler currencyConvertHandler(ExchangeRateClient exchangeRateClient) {
         return new CurrencyConvertHandler(exchangeRateClient);
     }
 
-    @Order(3)
+    @Order(4)
     @Bean("gptConversationHandler")
     public GptConversationHandler gptConversationHandler(ChatGptClient client, MashaProperties mashaProperties, ChatGptProperties chatGptProperties) {
         return new GptConversationHandler(
@@ -41,15 +42,27 @@ public class HandlerConfig {
         );
     }
 
-    @Order(2)
+    @Order(3)
     @Bean("videoAnalyzeHandler")
     public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client) {
         return new VideoAnalyzeHandler(client);
     }
 
+    @Bean("selfieService")
+    public SelfieService selfieService(ru.balladali.mashabot.core.clients.selfie.FalSelfieClient client) {
+        return new SelfieService(client);
+    }
+
+    @Order(2)
+    @Bean("selfieHandler")
+    public SelfieHandler selfieHandler(SelfieService selfieService) {
+        return new SelfieHandler(selfieService);
+    }
+
     @Bean
     public List<MessageHandler> messageHandlers(Map<String, MessageHandler> messageHandlers) {
         List<MessageHandler> messageHandlersList = new ArrayList<>();
+        messageHandlersList.add(messageHandlers.get("selfieHandler"));
         messageHandlersList.add(messageHandlers.get("videoAnalyzeHandler"));
         messageHandlersList.add(messageHandlers.get("gptConversationHandler"));
         messageHandlersList.add(messageHandlers.get("conversationHandler"));
