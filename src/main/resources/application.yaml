@@ -20,6 +20,8 @@ credential:
       key: ${YANDEX_TRANSLATE_API_KEY:}
     speech:
       key: ${YANDEX_SPEECH_API_KEY:}
+  fal:
+    api-key: ${FAL_API_KEY:}
 ping-job:
   enabled: ${PING_JOB_ENABLED:false}
 clients:
@@ -31,6 +33,13 @@ clients:
   video-analyzer:
     base-url: ${VIDEO_ANALYZER_URL:http://127.0.0.1:8000/analyze}
     timeout-sec: ${VIDEO_ANALYZER_TIMEOUT_SEC:90}
+  fal:
+    base-url: ${FAL_BASE_URL:https://fal.run}
+    model-path: ${FAL_SELFIE_MODEL_PATH:fal-ai/flux/dev/image-to-image}
+    timeout-sec: ${FAL_TIMEOUT_SEC:90}
+selfie:
+  reference-path: ${SELFIE_REFERENCE_PATH:}
+  daily-limit: ${SELFIE_DAILY_LIMIT:5}
 masha:
   persona: |
     Ты — Маша: милая, умная девушка. 
