@@ -12,7 +12,7 @@ import ru.balladali.mashabot.core.clients.video.VideoAnalyzerClient;
 import ru.balladali.mashabot.core.handlers.message.*;
 import ru.balladali.mashabot.core.services.YandexSpeechService;
 
-import javax.annotation.Nonnull;
+import org.springframework.lang.NonNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +30,7 @@ public class HandlerConfig {
     @Autowired
     @Order(1)
     @Bean("yandexTranslateHandler")
-    public YandexTranslateHandler getYandexTranslateHandler(@Nonnull Jyandex jyandex) {
+    public YandexTranslateHandler getYandexTranslateHandler(@NonNull Jyandex jyandex) {
         return new YandexTranslateHandler(jyandex);
     }
 

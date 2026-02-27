@@ -2,7 +2,7 @@ package ru.balladali.mashabot.core.services;
 
 import org.springframework.beans.factory.annotation.Value;
 
-import javax.ws.rs.core.UriBuilder;
+import org.springframework.web.util.UriComponentsBuilder;
 import java.io.*;
 import java.net.URL;
 import java.net.URLConnection;
@@ -16,13 +16,14 @@ public class YandexSpeechService implements SpeechService {
 
     @Override
     public InputStream synthesize(String text) {
-        String url = UriBuilder.fromUri(ANSWER_URL)
+        String url = UriComponentsBuilder.fromUriString(ANSWER_URL)
                 .queryParam("key", YANDEX_API_KEY)
                 .queryParam("text", text)
                 .queryParam("format", "mp3")
                 .queryParam("lang", "ru-RU")
                 .queryParam("speaker", "alyss")
-                .toTemplate();
+                .build()
+                .toUriString();
 
         URLConnection connection;
         try {

@@ -1,10 +1,8 @@
 package ru.balladali.mashabot.core.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.boot.context.properties.ConstructorBinding;
 
 @ConfigurationProperties(prefix = "telegram.proxy")
-@ConstructorBinding
 public record ProxyProperties(
         Type type,
         String host,
