@@ -58,23 +58,23 @@
 		<dependency>
 			<groupId>org.telegram</groupId>
 			<artifactId>telegrambots-longpolling</artifactId>
-			<version>9.0.0</version>
+			<version>9.4.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.telegram</groupId>
 			<artifactId>telegrambots-client</artifactId>
-			<version>9.0.0</version>
+			<version>9.4.0</version>
 		</dependency>
 
 		<dependency>
 			<groupId>org.apache.commons</groupId>
 			<artifactId>commons-lang3</artifactId>
-			<version>3.18.0</version>
+			<version>3.20.0</version>
 		</dependency>
 		<dependency>
 			<groupId>org.json</groupId>
 			<artifactId>json</artifactId>
-			<version>20240303</version>
+			<version>20251224</version>
 		</dependency>
 
 		<dependency>
@@ -115,7 +115,7 @@
 		<dependency>
 			<groupId>org.projectlombok</groupId>
 			<artifactId>lombok</artifactId>
-			<version>1.18.34</version>
+			<version>1.18.42</version>
 			<scope>provided</scope>
 		</dependency>
 	</dependencies>
