@@ -1,7 +1,6 @@
 package ru.balladali.mashabot.core.config;
 
 import co.aurasphere.jyandex.Jyandex;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,28 +26,24 @@ public class HandlerConfig {
         return new ConversationHandler(yandexSpeechService);
     }
 
-    @Autowired
     @Order(1)
     @Bean("yandexTranslateHandler")
     public YandexTranslateHandler getYandexTranslateHandler(@NonNull Jyandex jyandex) {
         return new YandexTranslateHandler(jyandex);
     }
 
-    @Autowired
     @Order(4)
     @Bean("currencyConvertHandler")
     public CurrencyConvertHandler currencyConvertHandler(ExchangeRateClient exchangeRateClient) {
         return new CurrencyConvertHandler(exchangeRateClient);
     }
 
-    @Autowired
     @Order(3)
     @Bean("gptConversationHandler")
     public GptConversationHandler gptConversationHandler(ChatGptClient client, MashaProperties mashaProperties) {
         return new GptConversationHandler(client, mashaProperties.persona());
     }
 
-    @Autowired
     @Order(2)
     @Bean("videoAnalyzeHandler")
     public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client) {
