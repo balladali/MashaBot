@@ -7,5 +7,6 @@ public record ChatGptProperties(
         String baseUrl,
         String apiKey,
         String model,
-        int timeoutSec
+        int timeoutSec,
+        boolean streamEnabled
 ) {}
