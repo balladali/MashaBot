@@ -130,10 +130,17 @@ public class GptConversationHandler implements MessageHandler {
             return;
         }
 
+        boolean firstPart = true;
+        Integer replyToMessageId = messageEntity.getMessage() != null ? messageEntity.getMessage().getMessageId() : null;
+
         for (String part : splitForTelegram(t, TG_LIMIT)) {
             SendMessage msg = new SendMessage(messageEntity.getChatId(), part);
+            if (firstPart && replyToMessageId != null) {
+                msg.setReplyToMessageId(replyToMessageId);
+            }
             try {
                 messageEntity.getClient().execute(msg);
+                firstPart = false;
             } catch (TelegramApiException e) {
                 e.printStackTrace();
                 break;
