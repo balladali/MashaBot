@@ -19,7 +19,7 @@ public class SelfieService {
     @Value("${selfie.reference-path:}")
     private String referencePath;
 
-    @Value("${selfie.daily-limit:5}")
+    @Value("${selfie.daily-limit:10}")
     private int dailyLimit;
 
     @Value("${selfie.unlimited-user-ids:}")

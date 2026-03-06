@@ -151,6 +151,9 @@ public class SelfieHandler implements MessageHandler {
     public void sendAnswer(TelegramMessage messageEntity, String answer) {
         if (messageEntity == null || answer == null || answer.isBlank()) return;
         SendMessage msg = new SendMessage(messageEntity.getChatId(), answer.strip());
+        if (messageEntity.getMessage() != null && messageEntity.getMessage().getMessageId() != null) {
+            msg.setReplyToMessageId(messageEntity.getMessage().getMessageId());
+        }
         try {
             messageEntity.getClient().execute(msg);
         } catch (TelegramApiException e) {
@@ -169,6 +172,9 @@ public class SelfieHandler implements MessageHandler {
                 new InputFile(new ByteArrayInputStream(imageBytes), "selfie.jpg")
         );
         photo.setCaption(caption);
+        if (messageEntity.getMessage() != null && messageEntity.getMessage().getMessageId() != null) {
+            photo.setReplyToMessageId(messageEntity.getMessage().getMessageId());
+        }
         try {
             messageEntity.getClient().execute(photo);
         } catch (TelegramApiException e) {
