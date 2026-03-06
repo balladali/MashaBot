@@ -18,15 +18,16 @@ public class GptConversationHandler implements MessageHandler {
     private final ChatGptClient chat;
     private final String personaSystemPrompt;
     private final boolean streamEnabled;
+    private final int memoryMessages;
     private static final int TG_LIMIT = 4096;
-    private static final int MEMORY_TURNS = 8;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
 
-    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, boolean streamEnabled) {
+    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, boolean streamEnabled, int memoryMessages) {
         this.chat = chat;
         this.personaSystemPrompt = personaSystemPrompt;
         this.streamEnabled = streamEnabled;
+        this.memoryMessages = Math.max(1, memoryMessages);
     }
 
     @Override
@@ -122,7 +123,7 @@ public class GptConversationHandler implements MessageHandler {
         Deque<ChatGptClient.ChatMessage> history = DIALOG_MEMORY.computeIfAbsent(key, k -> new ArrayDeque<>());
         history.addLast(new ChatGptClient.ChatMessage(role, content));
 
-        while (history.size() > MEMORY_TURNS) {
+        while (history.size() > memoryMessages) {
             history.removeFirst();
         }
     }

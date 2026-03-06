@@ -29,6 +29,7 @@ clients:
     model: ${CHATGPT_MODEL}            # Модель
     timeout-sec: 30
     stream-enabled: ${GPT_STREAM_ENABLED:false}
+    memory-messages: ${GPT_MEMORY_MESSAGES:20}
   video-analyzer:
     base-url: ${VIDEO_ANALYZER_URL:http://127.0.0.1:8000/analyze}
     timeout-sec: ${VIDEO_ANALYZER_TIMEOUT_SEC:90}
