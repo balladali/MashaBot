@@ -38,7 +38,7 @@ public class ClientsConfiguration {
                                            @org.springframework.beans.factory.annotation.Value("${credential.fal.api-key:}") String apiKey) {
         String base = (props.baseUrl() == null || props.baseUrl().isBlank()) ? "https://fal.run" : props.baseUrl();
         String modelPath = (props.modelPath() == null || props.modelPath().isBlank())
-                ? "fal-ai/flux/dev/image-to-image"
+                ? "xai/grok-imagine-image"
                 : props.modelPath();
         String endpoint = base.endsWith("/") ? base + modelPath : base + "/" + modelPath;
         return new FalSelfieClient(client, endpoint, apiKey,

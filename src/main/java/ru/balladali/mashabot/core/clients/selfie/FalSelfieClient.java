@@ -222,6 +222,7 @@ public class FalSelfieClient {
                 return promptWithUserScene
                         .replace("{base}", base)
                         .replace("{request}", req)
+                        .replace("{user_request}", req)
                         .replace("{scene}", scene);
             }
             return base + " Scene: " + scene + ". User request to follow if possible: " + req;
@@ -230,7 +231,9 @@ public class FalSelfieClient {
         if (promptWithRandomScene != null && !promptWithRandomScene.isBlank()) {
             return promptWithRandomScene
                     .replace("{base}", base)
-                    .replace("{scene}", scene);
+                    .replace("{scene}", scene)
+                    .replace("{request}", req)
+                    .replace("{user_request}", req);
         }
         return base + " Scene: " + scene + ".";
     }

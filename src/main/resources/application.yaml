@@ -37,7 +37,7 @@ clients:
     timeout-sec: ${VIDEO_ANALYZER_TIMEOUT_SEC:90}
   fal:
     base-url: ${FAL_BASE_URL:https://fal.run}
-    model-path: ${FAL_SELFIE_MODEL_PATH:fal-ai/flux/dev/image-to-image}
+    model-path: ${FAL_SELFIE_MODEL_PATH:xai/grok-imagine-image}
     timeout-sec: ${FAL_TIMEOUT_SEC:90}
 selfie:
   reference-path: ${SELFIE_REFERENCE_PATH:}
