@@ -28,7 +28,6 @@ clients:
     api-key: ${OPENAI_API_KEY}         # Ключ
     model: ${CHATGPT_MODEL}            # Модель
     timeout-sec: 30
-    stream-enabled: ${GPT_STREAM_ENABLED:false}
     memory-messages: ${GPT_MEMORY_MESSAGES:20}
     memory-ttl-minutes: ${GPT_MEMORY_TTL_MINUTES:30}
   video-analyzer:

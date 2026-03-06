@@ -36,7 +36,6 @@ public class HandlerConfig {
         return new GptConversationHandler(
                 client,
                 mashaProperties.persona(),
-                chatGptProperties.streamEnabled(),
                 chatGptProperties.memoryMessages(),
                 chatGptProperties.memoryTtlMinutes()
         );
