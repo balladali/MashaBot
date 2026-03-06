@@ -5,7 +5,6 @@ import org.telegram.telegrambots.meta.api.methods.ActionType;
 import org.telegram.telegrambots.meta.api.methods.GetMe;
 import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.methods.send.SendMessageDraft;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
@@ -19,7 +18,6 @@ import java.util.regex.Pattern;
 public class GptConversationHandler implements MessageHandler {
     private final ChatGptClient chat;
     private final String personaSystemPrompt;
-    private final boolean streamEnabled;
     private final int memoryMessages;
     private final long memoryTtlMs;
     private static final int TG_LIMIT = 4096;
@@ -28,10 +26,9 @@ public class GptConversationHandler implements MessageHandler {
     private static final Map<String, Long> DIALOG_LAST_ACTIVITY = new ConcurrentHashMap<>();
     private static volatile Long BOT_ID = null;
 
-    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, boolean streamEnabled, int memoryMessages, int memoryTtlMinutes) {
+    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages, int memoryTtlMinutes) {
         this.chat = chat;
         this.personaSystemPrompt = personaSystemPrompt;
-        this.streamEnabled = streamEnabled;
         this.memoryMessages = Math.max(1, memoryMessages);
         this.memoryTtlMs = Math.max(1, memoryTtlMinutes) * 60_000L;
     }
@@ -92,29 +89,6 @@ public class GptConversationHandler implements MessageHandler {
         try {
             sendTyping(entity);
 
-            Integer draftId = resolveDraftId(entity.getMessage());
-            if (streamEnabled && draftId != null) {
-                StringBuilder acc = new StringBuilder();
-                final long[] lastPushMs = {0L};
-
-                chat.chatStream(messages, 0.8, 600, delta -> {
-                    acc.append(delta);
-                    long now = System.currentTimeMillis();
-                    if (now - lastPushMs[0] >= 350 && !acc.isEmpty()) {
-                        sendDraft(entity, draftId, acc.toString());
-                        lastPushMs[0] = now;
-                    }
-                });
-
-                if (!acc.isEmpty()) {
-                    String answer = acc.toString();
-                    sendDraft(entity, draftId, answer);
-                    appendMemory(memoryKey, "user", userQuery);
-                    appendMemory(memoryKey, "assistant", answer);
-                    return;
-                }
-            }
-
             String answer = chat.chat(messages, 0.8, 600);
             sendAnswer(entity, answer);
             appendMemory(memoryKey, "user", userQuery);
@@ -123,17 +97,6 @@ public class GptConversationHandler implements MessageHandler {
             e.printStackTrace();
             sendAnswer(entity, "Ой, тут что-то пошло не так… Давай попробуем ещё раз чуток позже?");
         }
-    }
-
-    private Integer resolveDraftId(Message message) {
-        if (message == null) return null;
-        if (message.getDirectMessagesTopic() != null && message.getDirectMessagesTopic().getTopicId() != null) {
-            long topicId = message.getDirectMessagesTopic().getTopicId();
-            if (topicId > 0 && topicId <= Integer.MAX_VALUE) {
-                return (int) topicId;
-            }
-        }
-        return null;
     }
 
     private String buildMemoryKey(Message message) {
@@ -166,17 +129,6 @@ public class GptConversationHandler implements MessageHandler {
 
         DIALOG_MEMORY.put(key, history);
         DIALOG_LAST_ACTIVITY.put(key, System.currentTimeMillis());
-    }
-
-    private void sendDraft(TelegramMessage messageEntity, Integer draftId, String text) {
-        if (text == null || text.isBlank()) return;
-        try {
-            Long chatId = Long.parseLong(messageEntity.getChatId());
-            Integer threadId = messageEntity.getMessage().getMessageThreadId();
-            SendMessageDraft draft = new SendMessageDraft(chatId, threadId, draftId, text, null, null);
-            messageEntity.getClient().execute(draft);
-        } catch (Exception ignored) {
-        }
     }
 
     @NotNull

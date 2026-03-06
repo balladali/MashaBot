@@ -8,7 +8,6 @@ public record ChatGptProperties(
         String apiKey,
         String model,
         int timeoutSec,
-        boolean streamEnabled,
         int memoryMessages,
         int memoryTtlMinutes
 ) {}
