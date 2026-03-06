@@ -3,6 +3,7 @@ package ru.balladali.mashabot.core.clients.selfie;
 import ai.fal.client.*;
 import ai.fal.client.queue.QueueResultOptions;
 import ai.fal.client.queue.QueueStatus;
+import ai.fal.client.queue.QueueStatusOptions;
 import ai.fal.client.queue.QueueSubmitOptions;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -69,6 +70,8 @@ public class FalSelfieClient {
             throw new IOException("FAL did not return requestId");
         }
 
+        waitForCompletion(requestId);
+
         Output<JsonObject> result = fal.queue().result(
                 endpoint,
                 QueueResultOptions.<JsonObject>builder()
@@ -100,6 +103,27 @@ public class FalSelfieClient {
         while (cleaned.startsWith("/")) cleaned = cleaned.substring(1);
         while (cleaned.endsWith("/")) cleaned = cleaned.substring(0, cleaned.length() - 1);
         return cleaned;
+    }
+
+    private void waitForCompletion(String requestId) throws Exception {
+        int maxAttempts = 45; // ~90s
+        for (int i = 0; i < maxAttempts; i++) {
+            QueueStatus.StatusUpdate status = fal.queue().status(
+                    endpoint,
+                    QueueStatusOptions.builder().requestId(requestId).logs(false).build()
+            );
+
+            QueueStatus.Status s = status.getStatus();
+            if (QueueStatus.Status.COMPLETED.equals(s)) {
+                return;
+            }
+            if (!(QueueStatus.Status.IN_QUEUE.equals(s) || QueueStatus.Status.IN_PROGRESS.equals(s))) {
+                throw new IOException("FAL job failed with status: " + s);
+            }
+
+            Thread.sleep(2000L);
+        }
+        throw new IOException("FAL job timeout waiting for completion");
     }
 
     private String extractImageUrl(JsonObject node) {
