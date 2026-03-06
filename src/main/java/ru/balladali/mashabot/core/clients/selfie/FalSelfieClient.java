@@ -1,8 +1,14 @@
 package ru.balladali.mashabot.core.clients.selfie;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import okhttp3.*;
+import ai.fal.client.*;
+import ai.fal.client.queue.QueueResultOptions;
+import ai.fal.client.queue.QueueStatus;
+import ai.fal.client.queue.QueueSubmitOptions;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
+import okhttp3.OkHttpClient;
+import okhttp3.Request;
+import okhttp3.Response;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -12,15 +18,12 @@ import java.util.Random;
 
 public class FalSelfieClient {
 
-    private static final MediaType JSON = MediaType.parse("application/json");
-
     private final OkHttpClient http;
-    private final ObjectMapper om;
     private final String endpoint;
-    private final String apiKey;
     private final String promptBase;
     private final String promptWithUserScene;
     private final String promptWithRandomScene;
+    private final FalClient fal;
 
     public FalSelfieClient(OkHttpClient httpClient, String endpoint, String apiKey, Duration timeout) {
         this(httpClient, endpoint, apiKey, timeout, null, null, null);
@@ -34,32 +37,51 @@ public class FalSelfieClient {
                            String promptWithUserScene,
                            String promptWithRandomScene) {
         this.http = httpClient.newBuilder().callTimeout(timeout).build();
-        this.om = new ObjectMapper();
-        this.endpoint = endpoint;
-        this.apiKey = apiKey;
+        this.endpoint = normalizeEndpointId(endpoint);
         this.promptBase = promptBase;
         this.promptWithUserScene = promptWithUserScene;
         this.promptWithRandomScene = promptWithRandomScene;
+
+        this.fal = FalClient.withConfig(
+                new ClientConfig.Builder()
+                        .withCredentials(CredentialsResolver.fromApiKey(apiKey))
+                        .build()
+        );
     }
 
     public byte[] generateSelfie(byte[] referenceImage, String userRequest) throws Exception {
-        if (apiKey == null || apiKey.isBlank()) throw new IllegalStateException("FAL API key is not configured");
         if (endpoint == null || endpoint.isBlank()) throw new IllegalStateException("FAL endpoint is not configured");
         if (referenceImage == null || referenceImage.length == 0) throw new IllegalArgumentException("Reference image is empty");
 
         String prompt = buildPrompt(userRequest);
         String dataUrl = "data:image/jpeg;base64," + Base64.getEncoder().encodeToString(referenceImage);
 
-        String submitPayload = om.createObjectNode()
-                .set("input", om.createObjectNode()
-                        .put("prompt", prompt)
-                        .put("image_url", dataUrl)
-                        .put("num_images", 1)
-                        .put("output_format", "jpeg")
-                )
-                .toString();
+        JsonObject input = JsonInput.input()
+                .set("prompt", prompt)
+                .set("image_url", dataUrl)
+                .set("num_images", 1)
+                .set("output_format", "jpeg")
+                .build();
 
-        String imageUrl = submitAndAwaitImageUrl(submitPayload);
+        QueueStatus.InQueue submitted = fal.queue().submit(endpoint, QueueSubmitOptions.withInput(input));
+        String requestId = submitted.getRequestId();
+        if (requestId == null || requestId.isBlank()) {
+            throw new IOException("FAL did not return requestId");
+        }
+
+        Output<JsonObject> result = fal.queue().result(
+                endpoint,
+                QueueResultOptions.<JsonObject>builder()
+                        .requestId(requestId)
+                        .resultType(JsonObject.class)
+                        .build()
+        );
+
+        JsonObject data = result.getData();
+        String imageUrl = extractImageUrl(data);
+        if (imageUrl == null || imageUrl.isBlank()) {
+            throw new IOException("FAL response does not contain image URL");
+        }
 
         Request imageReq = new Request.Builder().url(imageUrl).get().build();
         try (Response imgResp = http.newCall(imageReq).execute()) {
@@ -72,130 +94,43 @@ public class FalSelfieClient {
         }
     }
 
-    private String submitAndAwaitImageUrl(String submitPayload) throws Exception {
-        String endpointId = extractEndpointId(endpoint);
-        String submitUrl = "https://queue.fal.run/" + endpointId;
-
-        Request submitReq = new Request.Builder()
-                .url(submitUrl)
-                .header("Authorization", "Key " + apiKey)
-                .header("Content-Type", "application/json")
-                .post(RequestBody.create(submitPayload, JSON))
-                .build();
-
-        String requestId;
-        try (Response resp = http.newCall(submitReq).execute()) {
-            String body = resp.body() != null ? resp.body().string() : "";
-            if (!resp.isSuccessful()) {
-                throw new IOException("FAL submit HTTP " + resp.code() + ": " + body);
-            }
-
-            // Иногда endpoint может вернуть сразу готовую картинку
-            String immediateUrl = extractImageUrl(body);
-            if (immediateUrl != null && !immediateUrl.isBlank()) {
-                return immediateUrl;
-            }
-
-            JsonNode root = om.readTree(body);
-            JsonNode reqId = root.get("request_id");
-            if (reqId == null || reqId.asText().isBlank()) {
-                throw new IOException("FAL submit response does not contain request_id: " + body);
-            }
-            requestId = reqId.asText();
-        }
-
-        // Poll until completed
-        String statusUrl = "https://queue.fal.run/" + endpointId + "/requests/" + requestId + "/status";
-        String resultUrl = "https://queue.fal.run/" + endpointId + "/requests/" + requestId;
-
-        int maxAttempts = 45; // ~90s total
-        for (int i = 0; i < maxAttempts; i++) {
-            String body = doGet(statusUrl);
-            String imageUrl = extractImageUrl(body);
-            if (imageUrl != null && !imageUrl.isBlank()) {
-                return imageUrl;
-            }
-
-            JsonNode root = om.readTree(body);
-            String status = root.path("status").asText("").toLowerCase();
-            if ("completed".equals(status)) {
-                String resultBody = doGet(resultUrl);
-                String resultImage = extractImageUrl(resultBody);
-                if (resultImage != null && !resultImage.isBlank()) {
-                    return resultImage;
-                }
-                throw new IOException("FAL completed but no image URL in result");
-            }
-            if ("failed".equals(status) || "error".equals(status)) {
-                throw new IOException("FAL job failed: " + body);
-            }
-
-            Thread.sleep(2000L);
-        }
-
-        throw new IOException("FAL job timeout waiting for result");
-    }
-
-    private String doGet(String url) throws Exception {
-        Request req = new Request.Builder()
-                .url(url)
-                .header("Authorization", "Key " + apiKey)
-                .get()
-                .build();
-
-        try (Response resp = http.newCall(req).execute()) {
-            String body = resp.body() != null ? resp.body().string() : "";
-            if (!resp.isSuccessful()) {
-                throw new IOException("FAL GET HTTP " + resp.code() + " (" + url + "): " + body);
-            }
-            return body;
-        }
-    }
-
-    private String extractEndpointId(String endpointUrl) {
-        String cleaned = endpointUrl.replaceFirst("^https?://[^/]+/", "");
-        if (cleaned.startsWith("fal.run/")) {
-            cleaned = cleaned.substring("fal.run/".length());
-        }
-        if (cleaned.startsWith("queue.fal.run/")) {
-            cleaned = cleaned.substring("queue.fal.run/".length());
-        }
+    private String normalizeEndpointId(String endpointValue) {
+        if (endpointValue == null) return null;
+        String cleaned = endpointValue.replaceFirst("^https?://[^/]+/", "");
         while (cleaned.startsWith("/")) cleaned = cleaned.substring(1);
         while (cleaned.endsWith("/")) cleaned = cleaned.substring(0, cleaned.length() - 1);
         return cleaned;
     }
 
-    private String extractImageUrl(String body) throws Exception {
-        JsonNode root = om.readTree(body);
+    private String extractImageUrl(JsonObject node) {
+        if (node == null) return null;
 
-        // Common output shapes from fal queue/result
-        JsonNode data = root.path("data");
-        String fromData = extractImageUrlFromNode(data);
-        if (fromData != null) return fromData;
-
-        String fromRoot = extractImageUrlFromNode(root);
-        if (fromRoot != null) return fromRoot;
-
-        return null;
-    }
-
-    private String extractImageUrlFromNode(JsonNode node) {
-        if (node == null || node.isMissingNode() || node.isNull()) return null;
-
-        if (node.has("images") && node.get("images").isArray() && node.get("images").size() > 0) {
-            JsonNode first = node.get("images").get(0);
-            if (first.has("url")) return first.get("url").asText();
+        if (node.has("images") && node.get("images").isJsonArray()) {
+            JsonArray arr = node.getAsJsonArray("images");
+            if (!arr.isEmpty() && arr.get(0).isJsonObject()) {
+                JsonObject first = arr.get(0).getAsJsonObject();
+                if (first.has("url")) return first.get("url").getAsString();
+            }
         }
-        if (node.has("image") && node.get("image").has("url")) {
-            return node.get("image").get("url").asText();
+        if (node.has("image") && node.get("image").isJsonObject()) {
+            JsonObject image = node.getAsJsonObject("image");
+            if (image.has("url")) return image.get("url").getAsString();
         }
-        if (node.has("url") && node.get("url").isTextual()) {
-            return node.get("url").asText();
+        if (node.has("url")) return node.get("url").getAsString();
+        if (node.has("data") && node.get("data").isJsonObject()) {
+            return extractImageUrl(node.getAsJsonObject("data"));
         }
-        if (node.has("output") && node.get("output").isArray() && node.get("output").size() > 0) {
-            JsonNode first = node.get("output").get(0);
-            if (first.has("url")) return first.get("url").asText();
-            if (first.isTextual()) return first.asText();
+        if (node.has("output") && node.get("output").isJsonArray()) {
+            JsonArray arr = node.getAsJsonArray("output");
+            if (!arr.isEmpty()) {
+                if (arr.get(0).isJsonObject()) {
+                    JsonObject first = arr.get(0).getAsJsonObject();
+                    if (first.has("url")) return first.get("url").getAsString();
+                }
+                if (arr.get(0).isJsonPrimitive()) {
+                    return arr.get(0).getAsString();
+                }
+            }
         }
         return null;
     }
@@ -213,8 +148,8 @@ public class FalSelfieClient {
 
         String base = (promptBase == null || promptBase.isBlank())
                 ? "Realistic smartphone selfie of the same woman as in the reference image. " +
-                  "Photorealistic, natural skin texture, casual human vibe, candid shot as if taken right now. " +
-                  "No stylization, no illustration, no CGI, no text overlay."
+                "Photorealistic, natural skin texture, casual human vibe, candid shot as if taken right now. " +
+                "No stylization, no illustration, no CGI, no text overlay."
                 : promptBase;
 
         if (!req.isBlank()) {
