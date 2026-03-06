@@ -9,10 +9,10 @@ import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
+import ru.balladali.mashabot.core.services.DialogMemoryStore;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class GptConversationHandler implements MessageHandler {
@@ -22,8 +22,6 @@ public class GptConversationHandler implements MessageHandler {
     private final long memoryTtlMs;
     private static final int TG_LIMIT = 4096;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-    private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
-    private static final Map<String, Long> DIALOG_LAST_ACTIVITY = new ConcurrentHashMap<>();
     private static volatile Long BOT_ID = null;
 
     public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages, int memoryTtlMinutes) {
@@ -84,51 +82,19 @@ public class GptConversationHandler implements MessageHandler {
             return;
         }
 
-        String memoryKey = buildMemoryKey(entity.getMessage());
+        String memoryKey = DialogMemoryStore.keyFromMessage(entity.getMessage());
         List<ChatGptClient.ChatMessage> messages = getChatMessages(memoryKey, reply, caption, userQuery);
         try {
             sendTyping(entity);
 
             String answer = chat.chat(messages, 0.8, 600);
             sendAnswer(entity, answer);
-            appendMemory(memoryKey, "user", userQuery);
-            appendMemory(memoryKey, "assistant", answer);
+            DialogMemoryStore.append(memoryKey, "user", userQuery, memoryMessages, memoryTtlMs);
+            DialogMemoryStore.append(memoryKey, "assistant", answer, memoryMessages, memoryTtlMs);
         } catch (Exception e) {
             e.printStackTrace();
             sendAnswer(entity, "Ой, тут что-то пошло не так… Давай попробуем ещё раз чуток позже?");
         }
-    }
-
-    private String buildMemoryKey(Message message) {
-        if (message == null) return "unknown";
-        Long chatId = message.getChatId();
-        Long userId = message.getFrom() != null ? message.getFrom().getId() : null;
-        return String.valueOf(chatId) + ":" + String.valueOf(userId);
-    }
-
-    private Deque<ChatGptClient.ChatMessage> getActiveHistory(String key) {
-        long now = System.currentTimeMillis();
-        Long last = DIALOG_LAST_ACTIVITY.get(key);
-        if (last != null && now - last > memoryTtlMs) {
-            DIALOG_MEMORY.remove(key);
-            DIALOG_LAST_ACTIVITY.remove(key);
-            return new ArrayDeque<>();
-        }
-        return DIALOG_MEMORY.getOrDefault(key, new ArrayDeque<>());
-    }
-
-    private void appendMemory(String key, String role, String content) {
-        if (content == null || content.isBlank()) return;
-
-        Deque<ChatGptClient.ChatMessage> history = new ArrayDeque<>(getActiveHistory(key));
-        history.addLast(new ChatGptClient.ChatMessage(role, content));
-
-        while (history.size() > memoryMessages) {
-            history.removeFirst();
-        }
-
-        DIALOG_MEMORY.put(key, history);
-        DIALOG_LAST_ACTIVITY.put(key, System.currentTimeMillis());
     }
 
     @NotNull
@@ -136,9 +102,9 @@ public class GptConversationHandler implements MessageHandler {
         List<ChatGptClient.ChatMessage> messages = new ArrayList<>();
         messages.add(new ChatGptClient.ChatMessage("system", personaSystemPrompt));
 
-        Deque<ChatGptClient.ChatMessage> history = getActiveHistory(memoryKey);
-        if (!history.isEmpty()) {
-            messages.addAll(history);
+        List<DialogMemoryStore.Turn> history = DialogMemoryStore.getHistory(memoryKey, memoryTtlMs);
+        for (DialogMemoryStore.Turn turn : history) {
+            messages.add(new ChatGptClient.ChatMessage(turn.role(), turn.content()));
         }
 
         String context = "";

@@ -9,10 +9,12 @@ import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
+import ru.balladali.mashabot.core.services.DialogMemoryStore;
 import ru.balladali.mashabot.core.services.SelfieService;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 
 import java.io.ByteArrayInputStream;
+import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -20,6 +22,7 @@ public class SelfieHandler implements MessageHandler {
 
     private static final Pattern BOT_TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Pattern SELFIE_TRIGGER = Pattern.compile("(селфи|сэлфи|selfie|фотк\\w*|фото\\s*меня|сфотк\\w*|себя|тво(ю|е|ё)\\s+фотк\\w*|тво(е|ё)\\s+селфи)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
+    private static final int SELFIE_CONTEXT_TTL_MINUTES = 30;
     private static volatile Long BOT_ID = null;
 
     private final SelfieService selfieService;
@@ -96,6 +99,11 @@ public class SelfieHandler implements MessageHandler {
             return explicitRequest;
         }
 
+        String memoryPrompt = buildPromptFromRecentHistory(entity);
+        if (memoryPrompt != null && !memoryPrompt.isBlank()) {
+            return memoryPrompt;
+        }
+
         if (entity != null && entity.getMessage() != null && entity.getMessage().getReplyToMessage() != null) {
             Message replied = entity.getMessage().getReplyToMessage();
             String repliedText = replied.getText();
@@ -116,6 +124,27 @@ public class SelfieHandler implements MessageHandler {
         }
 
         return "Нейтральное реалистичное селфи в повседневной обстановке";
+    }
+
+    private String buildPromptFromRecentHistory(TelegramMessage entity) {
+        if (entity == null || entity.getMessage() == null) return "";
+
+        String key = DialogMemoryStore.keyFromMessage(entity.getMessage());
+        List<DialogMemoryStore.Turn> history = DialogMemoryStore.getHistory(key, SELFIE_CONTEXT_TTL_MINUTES * 60_000L);
+        if (history.isEmpty()) return "";
+
+        StringBuilder buf = new StringBuilder();
+        int from = Math.max(0, history.size() - 6);
+        for (int i = from; i < history.size(); i++) {
+            DialogMemoryStore.Turn t = history.get(i);
+            if (t.content() == null || t.content().isBlank()) continue;
+            String role = "user".equalsIgnoreCase(t.role()) ? "Пользователь" : "Маша";
+            if (!buf.isEmpty()) buf.append("; ");
+            buf.append(role).append(": ").append(t.content().strip());
+        }
+
+        if (buf.isEmpty()) return "";
+        return "Сделай селфи с настроением и деталями из недавнего диалога: " + buf;
     }
 
     @Override
