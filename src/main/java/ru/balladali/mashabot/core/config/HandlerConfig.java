@@ -33,7 +33,13 @@ public class HandlerConfig {
     @Order(3)
     @Bean("gptConversationHandler")
     public GptConversationHandler gptConversationHandler(ChatGptClient client, MashaProperties mashaProperties, ChatGptProperties chatGptProperties) {
-        return new GptConversationHandler(client, mashaProperties.persona(), chatGptProperties.streamEnabled());
+        return new GptConversationHandler(
+                client,
+                mashaProperties.persona(),
+                chatGptProperties.streamEnabled(),
+                chatGptProperties.memoryMessages(),
+                chatGptProperties.memoryTtlMinutes()
+        );
     }
 
     @Order(2)
