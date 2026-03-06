@@ -2,9 +2,11 @@ package ru.balladali.mashabot.core.handlers.message;
 
 import org.jetbrains.annotations.NotNull;
 import org.telegram.telegrambots.meta.api.methods.ActionType;
+import org.telegram.telegrambots.meta.api.methods.GetMe;
 import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessageDraft;
+import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
@@ -22,6 +24,7 @@ public class GptConversationHandler implements MessageHandler {
     private static final int TG_LIMIT = 4096;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
+    private static volatile Long BOT_ID = null;
 
     public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, boolean streamEnabled, int memoryMessages) {
         this.chat = chat;
@@ -36,13 +39,32 @@ public class GptConversationHandler implements MessageHandler {
 
         String text = message.getText();
         boolean hasTrigger = text != null && TRIGGER.matcher(text).find();
-        return hasTrigger || isReplyToBotMessage(message.getMessage());
+        return hasTrigger || isReplyToMashaMessage(message);
     }
 
-    private boolean isReplyToBotMessage(Message message) {
-        if (message == null || message.getReplyToMessage() == null) return false;
-        Message replied = message.getReplyToMessage();
-        return replied.getFrom() != null && Boolean.TRUE.equals(replied.getFrom().getIsBot());
+    private boolean isReplyToMashaMessage(TelegramMessage telegramMessage) {
+        Message message = telegramMessage.getMessage();
+        if (message == null || message.getReplyToMessage() == null || message.getReplyToMessage().getFrom() == null) {
+            return false;
+        }
+
+        Long mashaId = resolveBotId(telegramMessage);
+        if (mashaId == null) return false;
+
+        return Objects.equals(message.getReplyToMessage().getFrom().getId(), mashaId);
+    }
+
+    private Long resolveBotId(TelegramMessage telegramMessage) {
+        if (BOT_ID != null) return BOT_ID;
+        try {
+            User me = telegramMessage.getClient().execute(new GetMe());
+            if (me != null && me.getId() != null) {
+                BOT_ID = me.getId();
+                return BOT_ID;
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     @Override
