@@ -9,5 +9,6 @@ public record ChatGptProperties(
         String model,
         int timeoutSec,
         boolean streamEnabled,
-        int memoryMessages
+        int memoryMessages,
+        int memoryTtlMinutes
 ) {}

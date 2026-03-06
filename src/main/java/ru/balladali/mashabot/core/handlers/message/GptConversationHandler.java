@@ -21,16 +21,19 @@ public class GptConversationHandler implements MessageHandler {
     private final String personaSystemPrompt;
     private final boolean streamEnabled;
     private final int memoryMessages;
+    private final long memoryTtlMs;
     private static final int TG_LIMIT = 4096;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
+    private static final Map<String, Long> DIALOG_LAST_ACTIVITY = new ConcurrentHashMap<>();
     private static volatile Long BOT_ID = null;
 
-    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, boolean streamEnabled, int memoryMessages) {
+    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, boolean streamEnabled, int memoryMessages, int memoryTtlMinutes) {
         this.chat = chat;
         this.personaSystemPrompt = personaSystemPrompt;
         this.streamEnabled = streamEnabled;
         this.memoryMessages = Math.max(1, memoryMessages);
+        this.memoryTtlMs = Math.max(1, memoryTtlMinutes) * 60_000L;
     }
 
     @Override
@@ -140,14 +143,29 @@ public class GptConversationHandler implements MessageHandler {
         return String.valueOf(chatId) + ":" + String.valueOf(userId);
     }
 
+    private Deque<ChatGptClient.ChatMessage> getActiveHistory(String key) {
+        long now = System.currentTimeMillis();
+        Long last = DIALOG_LAST_ACTIVITY.get(key);
+        if (last != null && now - last > memoryTtlMs) {
+            DIALOG_MEMORY.remove(key);
+            DIALOG_LAST_ACTIVITY.remove(key);
+            return new ArrayDeque<>();
+        }
+        return DIALOG_MEMORY.getOrDefault(key, new ArrayDeque<>());
+    }
+
     private void appendMemory(String key, String role, String content) {
         if (content == null || content.isBlank()) return;
-        Deque<ChatGptClient.ChatMessage> history = DIALOG_MEMORY.computeIfAbsent(key, k -> new ArrayDeque<>());
+
+        Deque<ChatGptClient.ChatMessage> history = new ArrayDeque<>(getActiveHistory(key));
         history.addLast(new ChatGptClient.ChatMessage(role, content));
 
         while (history.size() > memoryMessages) {
             history.removeFirst();
         }
+
+        DIALOG_MEMORY.put(key, history);
+        DIALOG_LAST_ACTIVITY.put(key, System.currentTimeMillis());
     }
 
     private void sendDraft(TelegramMessage messageEntity, Integer draftId, String text) {
@@ -166,8 +184,8 @@ public class GptConversationHandler implements MessageHandler {
         List<ChatGptClient.ChatMessage> messages = new ArrayList<>();
         messages.add(new ChatGptClient.ChatMessage("system", personaSystemPrompt));
 
-        Deque<ChatGptClient.ChatMessage> history = DIALOG_MEMORY.get(memoryKey);
-        if (history != null && !history.isEmpty()) {
+        Deque<ChatGptClient.ChatMessage> history = getActiveHistory(memoryKey);
+        if (!history.isEmpty()) {
             messages.addAll(history);
         }
 
