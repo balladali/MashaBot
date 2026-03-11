@@ -28,7 +28,7 @@ public class GptConversationHandler implements MessageHandler {
     private final int memoryMessages;
     private final long memoryTtlMs;
     private static final int TG_LIMIT = 4096;
-    private final int summaryEveryUserMessages;
+    private static final int SUMMARY_EVERY_USER_MESSAGES = 100;
     private static final int LONG_MEMORY_PROMPT_LIMIT = 2500;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
@@ -38,12 +38,11 @@ public class GptConversationHandler implements MessageHandler {
     private static volatile Long BOT_ID = null;
     private static final Path PROFILE_DIR = Paths.get("memory", "profile");
 
-    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages, int memoryTtlMinutes, int summaryEveryUserMessages) {
+    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages, int memoryTtlMinutes) {
         this.chat = chat;
         this.personaSystemPrompt = personaSystemPrompt;
         this.memoryMessages = Math.max(1, memoryMessages);
         this.memoryTtlMs = Math.max(1, memoryTtlMinutes) * 60_000L;
-        this.summaryEveryUserMessages = Math.max(1, summaryEveryUserMessages);
     }
 
     @Override
@@ -171,7 +170,7 @@ public class GptConversationHandler implements MessageHandler {
     }
 
     private boolean needSummary(String key) {
-        return USER_MESSAGES_SINCE_SUMMARY.getOrDefault(key, 0) >= summaryEveryUserMessages;
+        return USER_MESSAGES_SINCE_SUMMARY.getOrDefault(key, 0) >= SUMMARY_EVERY_USER_MESSAGES;
     }
 
     private void summarizeAndPersist(String key) {

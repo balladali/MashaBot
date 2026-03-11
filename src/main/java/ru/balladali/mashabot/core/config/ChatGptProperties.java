@@ -9,6 +9,5 @@ public record ChatGptProperties(
         String model,
         int timeoutSec,
         int memoryMessages,
-        int memoryTtlMinutes,
-        int summaryEveryUserMessages
+        int memoryTtlMinutes
 ) {}
