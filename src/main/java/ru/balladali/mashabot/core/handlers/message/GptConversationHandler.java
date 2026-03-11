@@ -9,15 +9,9 @@ import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
+import ru.balladali.mashabot.core.services.ProfileSummaryService;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -27,28 +21,30 @@ public class GptConversationHandler implements MessageHandler {
     private final String personaSystemPrompt;
     private final int memoryMessages;
     private final long memoryTtlMs;
-    private static final int TG_LIMIT = 4096;
     private final int summaryEveryUserMessages;
+    private final ProfileSummaryService profileSummaryService;
+
+    private static final int TG_LIMIT = 4096;
     private static final int LONG_MEMORY_PROMPT_LIMIT = 2500;
-    private static final String SUMMARY_MARKER = "## Summary @ ";
-    private static final int PROFILE_COMPACT_THRESHOLD = 10;
-    private static final int PROFILE_KEEP_RECENT_SUMMARIES = 2;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
     private static final Map<String, Long> DIALOG_LAST_ACTIVITY = new ConcurrentHashMap<>();
     private static final Map<String, Deque<ChatGptClient.ChatMessage>> SUMMARY_BUFFER = new ConcurrentHashMap<>();
     private static final Map<String, Integer> USER_MESSAGES_SINCE_SUMMARY = new ConcurrentHashMap<>();
     private static volatile Long BOT_ID = null;
-    private final Path profileDir;
 
-    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages, int memoryTtlMinutes, int summaryEveryUserMessages, String profileDir) {
+    public GptConversationHandler(ChatGptClient chat,
+                                  String personaSystemPrompt,
+                                  int memoryMessages,
+                                  int memoryTtlMinutes,
+                                  int summaryEveryUserMessages,
+                                  String profileDir) {
         this.chat = chat;
         this.personaSystemPrompt = personaSystemPrompt;
         this.memoryMessages = Math.max(1, memoryMessages);
         this.memoryTtlMs = Math.max(1, memoryTtlMinutes) * 60_000L;
         this.summaryEveryUserMessages = Math.max(1, summaryEveryUserMessages);
-        String dir = (profileDir == null || profileDir.isBlank()) ? "/opt/masha/memory" : profileDir;
-        this.profileDir = Paths.get(dir);
+        this.profileSummaryService = new ProfileSummaryService(chat, profileDir);
     }
 
     @Override
@@ -163,7 +159,6 @@ public class GptConversationHandler implements MessageHandler {
         Deque<ChatGptClient.ChatMessage> buffer = new ArrayDeque<>(SUMMARY_BUFFER.getOrDefault(key, new ArrayDeque<>()));
         buffer.addLast(new ChatGptClient.ChatMessage(role, content));
 
-        // safeguard from unbounded growth if summarization fails repeatedly
         while (buffer.size() > 240) {
             buffer.removeFirst();
         }
@@ -188,13 +183,9 @@ public class GptConversationHandler implements MessageHandler {
             transcript.append(m.role()).append(": ").append(m.content()).append("\n");
         }
 
-        List<ChatGptClient.ChatMessage> summaryPrompt = new ArrayList<>();
-        summaryPrompt.add(new ChatGptClient.ChatMessage("system", "Сделай краткую долговременную выжимку диалога. Выдели только стабильные факты о пользователе, договоренности и долгоживущий контекст. Без воды, 15-20 пунктов."));
-        summaryPrompt.add(new ChatGptClient.ChatMessage("user", transcript.toString()));
-
         try {
-            String summary = chat.chat(summaryPrompt, 0.2, 350);
-            appendProfileSummary(key, summary);
+            String summary = profileSummaryService.generateDialogSummary(transcript.toString());
+            profileSummaryService.appendSummaryAndMaybeResummarize(key, summary);
             USER_MESSAGES_SINCE_SUMMARY.put(key, 0);
             SUMMARY_BUFFER.remove(key);
         } catch (Exception e) {
@@ -202,105 +193,12 @@ public class GptConversationHandler implements MessageHandler {
         }
     }
 
-    private String loadLongTermMemoryForPrompt(String key) {
-        Path file = profileFilePath(key);
-        if (!Files.exists(file)) return "";
-        try {
-            String content = Files.readString(file, StandardCharsets.UTF_8);
-            if (content.length() <= LONG_MEMORY_PROMPT_LIMIT) return content;
-            return content.substring(content.length() - LONG_MEMORY_PROMPT_LIMIT);
-        } catch (IOException e) {
-            return "";
-        }
-    }
-
-    private synchronized void appendProfileSummary(String key, String summary) throws Exception {
-        if (summary == null || summary.isBlank()) return;
-
-        Path file = profileFilePath(key);
-        Files.createDirectories(file.getParent());
-
-        String existing = Files.exists(file)
-                ? Files.readString(file, StandardCharsets.UTF_8)
-                : "# User Long-Term Memory\n\n";
-
-        String section = SUMMARY_MARKER + Instant.now() + "\n" + summary.strip() + "\n\n";
-        String updated = existing + section;
-
-        writeAtomically(file, updated);
-        maybeResummarizeProfile(file);
-    }
-
-    private void maybeResummarizeProfile(Path file) throws Exception {
-        if (!Files.exists(file)) return;
-
-        String content = Files.readString(file, StandardCharsets.UTF_8);
-        List<String> sections = extractSummarySections(content);
-        if (sections.size() < PROFILE_COMPACT_THRESHOLD) return;
-
-        int keepRecent = Math.min(PROFILE_KEEP_RECENT_SUMMARIES, sections.size());
-        int compactCount = sections.size() - keepRecent;
-        if (compactCount <= 1) return;
-
-        StringBuilder oldSummaries = new StringBuilder();
-        for (int i = 0; i < compactCount; i++) {
-            oldSummaries.append(sections.get(i)).append("\n\n");
-        }
-
-        List<ChatGptClient.ChatMessage> prompt = new ArrayList<>();
-        prompt.add(new ChatGptClient.ChatMessage("system", "Сделай ресаммари уже существующих Summary-блоков в один новый Summary. Сохрани только стабильные факты о пользователе, договоренности и долгоживущий контекст. 15-20 пунктов, без воды и дублей."));
-        prompt.add(new ChatGptClient.ChatMessage("user", oldSummaries.toString()));
-
-        String merged = chat.chat(prompt, 0.2, 450);
-
-        StringBuilder rebuilt = new StringBuilder("# User Long-Term Memory\n\n");
-        rebuilt.append(SUMMARY_MARKER).append(Instant.now()).append("\n").append(merged.strip()).append("\n\n");
-        for (int i = compactCount; i < sections.size(); i++) {
-            rebuilt.append(sections.get(i)).append("\n\n");
-        }
-
-        writeAtomically(file, rebuilt.toString());
-    }
-
-    private List<String> extractSummarySections(String content) {
-        List<String> sections = new ArrayList<>();
-        int idx = content.indexOf(SUMMARY_MARKER);
-        while (idx >= 0) {
-            int next = content.indexOf(SUMMARY_MARKER, idx + SUMMARY_MARKER.length());
-            String section = (next >= 0) ? content.substring(idx, next) : content.substring(idx);
-            section = section.strip();
-            if (!section.isBlank()) {
-                sections.add(section);
-            }
-            idx = next;
-        }
-        return sections;
-    }
-
-    private void writeAtomically(Path file, String content) throws IOException {
-        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(tmp, content, StandardCharsets.UTF_8);
-        Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    private Path profileFilePath(String key) {
-        String[] parts = key.split(":", 2);
-        String chatId = sanitize(parts.length > 0 ? parts[0] : "unknown_chat");
-        String userId = sanitize(parts.length > 1 ? parts[1] : "unknown_user");
-        return profileDir.resolve(chatId).resolve(userId + ".md");
-    }
-
-    private String sanitize(String raw) {
-        if (raw == null || raw.isBlank()) return "unknown";
-        return raw.replaceAll("[^a-zA-Z0-9._-]", "_");
-    }
-
     @NotNull
     private List<ChatGptClient.ChatMessage> getChatMessages(String memoryKey, String reply, String caption, String userQuery) {
         List<ChatGptClient.ChatMessage> messages = new ArrayList<>();
         messages.add(new ChatGptClient.ChatMessage("system", personaSystemPrompt));
 
-        String longMemory = loadLongTermMemoryForPrompt(memoryKey);
+        String longMemory = profileSummaryService.loadForPrompt(memoryKey, LONG_MEMORY_PROMPT_LIMIT);
         if (!longMemory.isBlank()) {
             messages.add(new ChatGptClient.ChatMessage("system", "Долговременная память о пользователе:\n" + longMemory));
         }
