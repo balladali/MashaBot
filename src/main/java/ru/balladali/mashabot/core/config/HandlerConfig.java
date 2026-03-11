@@ -37,7 +37,8 @@ public class HandlerConfig {
                 client,
                 mashaProperties.persona(),
                 chatGptProperties.memoryMessages(),
-                chatGptProperties.memoryTtlMinutes()
+                chatGptProperties.memoryTtlMinutes(),
+                chatGptProperties.summaryEveryUserMessages()
         );
     }
 
