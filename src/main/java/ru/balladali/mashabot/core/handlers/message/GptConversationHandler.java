@@ -11,13 +11,6 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
-import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
@@ -28,15 +21,10 @@ public class GptConversationHandler implements MessageHandler {
     private final int memoryMessages;
     private final long memoryTtlMs;
     private static final int TG_LIMIT = 4096;
-    private static final int SUMMARY_EVERY_USER_MESSAGES = 100;
-    private static final int LONG_MEMORY_PROMPT_LIMIT = 2500;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
     private static final Map<String, Long> DIALOG_LAST_ACTIVITY = new ConcurrentHashMap<>();
-    private static final Map<String, Deque<ChatGptClient.ChatMessage>> SUMMARY_BUFFER = new ConcurrentHashMap<>();
-    private static final Map<String, Integer> USER_MESSAGES_SINCE_SUMMARY = new ConcurrentHashMap<>();
     private static volatile Long BOT_ID = null;
-    private static final Path PROFILE_DIR = Paths.get("memory", "profile");
 
     public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages, int memoryTtlMinutes) {
         this.chat = chat;
@@ -103,16 +91,8 @@ public class GptConversationHandler implements MessageHandler {
 
             String answer = chat.chat(messages, 0.8, 600);
             sendAnswer(entity, answer);
-
             appendMemory(memoryKey, "user", userQuery);
             appendMemory(memoryKey, "assistant", answer);
-
-            appendSummaryBuffer(memoryKey, "user", userQuery);
-            appendSummaryBuffer(memoryKey, "assistant", answer);
-
-            if (needSummary(memoryKey)) {
-                summarizeAndPersist(memoryKey);
-            }
         } catch (Exception e) {
             e.printStackTrace();
             sendAnswer(entity, "Ой, тут что-то пошло не так… Давай попробуем ещё раз чуток позже?");
@@ -151,102 +131,10 @@ public class GptConversationHandler implements MessageHandler {
         DIALOG_LAST_ACTIVITY.put(key, System.currentTimeMillis());
     }
 
-    private void appendSummaryBuffer(String key, String role, String content) {
-        if (content == null || content.isBlank()) return;
-
-        Deque<ChatGptClient.ChatMessage> buffer = new ArrayDeque<>(SUMMARY_BUFFER.getOrDefault(key, new ArrayDeque<>()));
-        buffer.addLast(new ChatGptClient.ChatMessage(role, content));
-
-        // safeguard from unbounded growth if summarization fails repeatedly
-        while (buffer.size() > 240) {
-            buffer.removeFirst();
-        }
-
-        SUMMARY_BUFFER.put(key, buffer);
-
-        if ("user".equals(role)) {
-            USER_MESSAGES_SINCE_SUMMARY.merge(key, 1, Integer::sum);
-        }
-    }
-
-    private boolean needSummary(String key) {
-        return USER_MESSAGES_SINCE_SUMMARY.getOrDefault(key, 0) >= SUMMARY_EVERY_USER_MESSAGES;
-    }
-
-    private void summarizeAndPersist(String key) {
-        Deque<ChatGptClient.ChatMessage> buffer = SUMMARY_BUFFER.getOrDefault(key, new ArrayDeque<>());
-        if (buffer.isEmpty()) return;
-
-        StringBuilder transcript = new StringBuilder();
-        for (ChatGptClient.ChatMessage m : buffer) {
-            transcript.append(m.role()).append(": ").append(m.content()).append("\n");
-        }
-
-        List<ChatGptClient.ChatMessage> summaryPrompt = new ArrayList<>();
-        summaryPrompt.add(new ChatGptClient.ChatMessage("system", "Сделай краткую долговременную выжимку диалога. Выдели только стабильные факты о пользователе, договоренности и долгоживущий контекст. Без воды, 6-10 пунктов."));
-        summaryPrompt.add(new ChatGptClient.ChatMessage("user", transcript.toString()));
-
-        try {
-            String summary = chat.chat(summaryPrompt, 0.2, 350);
-            appendProfileSummary(key, summary);
-            USER_MESSAGES_SINCE_SUMMARY.put(key, 0);
-            SUMMARY_BUFFER.remove(key);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    private String loadLongTermMemoryForPrompt(String key) {
-        Path file = profileFilePath(key);
-        if (!Files.exists(file)) return "";
-        try {
-            String content = Files.readString(file, StandardCharsets.UTF_8);
-            if (content.length() <= LONG_MEMORY_PROMPT_LIMIT) return content;
-            return content.substring(content.length() - LONG_MEMORY_PROMPT_LIMIT);
-        } catch (IOException e) {
-            return "";
-        }
-    }
-
-    private synchronized void appendProfileSummary(String key, String summary) throws IOException {
-        if (summary == null || summary.isBlank()) return;
-
-        Path file = profileFilePath(key);
-        Files.createDirectories(file.getParent());
-
-        String existing = Files.exists(file)
-                ? Files.readString(file, StandardCharsets.UTF_8)
-                : "# User Long-Term Memory\n\n";
-
-        String section = "## Summary @ " + Instant.now() + "\n" + summary.strip() + "\n\n";
-        String updated = existing + section;
-
-        Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(tmp, updated, StandardCharsets.UTF_8);
-        Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    private Path profileFilePath(String key) {
-        String[] parts = key.split(":", 2);
-        String chatId = sanitize(parts.length > 0 ? parts[0] : "unknown_chat");
-        String userId = sanitize(parts.length > 1 ? parts[1] : "unknown_user");
-        return PROFILE_DIR.resolve(chatId).resolve(userId + ".md");
-    }
-
-    private String sanitize(String raw) {
-        if (raw == null || raw.isBlank()) return "unknown";
-        return raw.replaceAll("[^a-zA-Z0-9._-]", "_");
-    }
-
     @NotNull
     private List<ChatGptClient.ChatMessage> getChatMessages(String memoryKey, String reply, String caption, String userQuery) {
         List<ChatGptClient.ChatMessage> messages = new ArrayList<>();
         messages.add(new ChatGptClient.ChatMessage("system", personaSystemPrompt));
-
-        String longMemory = loadLongTermMemoryForPrompt(memoryKey);
-        if (!longMemory.isBlank()) {
-            messages.add(new ChatGptClient.ChatMessage("system", "Долговременная память о пользователе:\n" + longMemory));
-        }
 
         Deque<ChatGptClient.ChatMessage> history = getActiveHistory(memoryKey);
         if (!history.isEmpty()) {
