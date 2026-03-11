@@ -30,6 +30,7 @@ clients:
     timeout-sec: 30
     memory-messages: ${GPT_MEMORY_MESSAGES:20}
     memory-ttl-minutes: ${GPT_MEMORY_TTL_MINUTES:30}
+    summary-every-user-messages: ${GPT_SUMMARY_EVERY_USER_MESSAGES:100}
   video-analyzer:
     base-url: ${VIDEO_ANALYZER_URL:http://127.0.0.1:8000/analyze}
     timeout-sec: ${VIDEO_ANALYZER_TIMEOUT_SEC:90}
