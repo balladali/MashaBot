@@ -10,6 +10,5 @@ public record ChatGptProperties(
         int timeoutSec,
         int memoryMessages,
         int memoryTtlMinutes,
-        int summaryEveryUserMessages,
-        String profileDir
+        int summaryEveryUserMessages
 ) {}

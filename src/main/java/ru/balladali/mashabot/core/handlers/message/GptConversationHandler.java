@@ -36,16 +36,14 @@ public class GptConversationHandler implements MessageHandler {
     private static final Map<String, Deque<ChatGptClient.ChatMessage>> SUMMARY_BUFFER = new ConcurrentHashMap<>();
     private static final Map<String, Integer> USER_MESSAGES_SINCE_SUMMARY = new ConcurrentHashMap<>();
     private static volatile Long BOT_ID = null;
-    private final Path profileDir;
+    private static final Path PROFILE_DIR = Paths.get("memory", "profile");
 
-    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages, int memoryTtlMinutes, int summaryEveryUserMessages, String profileDir) {
+    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages, int memoryTtlMinutes, int summaryEveryUserMessages) {
         this.chat = chat;
         this.personaSystemPrompt = personaSystemPrompt;
         this.memoryMessages = Math.max(1, memoryMessages);
         this.memoryTtlMs = Math.max(1, memoryTtlMinutes) * 60_000L;
         this.summaryEveryUserMessages = Math.max(1, summaryEveryUserMessages);
-        String dir = (profileDir == null || profileDir.isBlank()) ? "/opt/masha/memory" : profileDir;
-        this.profileDir = Paths.get(dir);
     }
 
     @Override
@@ -186,7 +184,7 @@ public class GptConversationHandler implements MessageHandler {
         }
 
         List<ChatGptClient.ChatMessage> summaryPrompt = new ArrayList<>();
-        summaryPrompt.add(new ChatGptClient.ChatMessage("system", "Сделай краткую долговременную выжимку диалога. Выдели только стабильные факты о пользователе, договоренности и долгоживущий контекст. Без воды, 15-20 пунктов."));
+        summaryPrompt.add(new ChatGptClient.ChatMessage("system", "Сделай краткую долговременную выжимку диалога. Выдели только стабильные факты о пользователе, договоренности и долгоживущий контекст. Без воды, 6-10 пунктов."));
         summaryPrompt.add(new ChatGptClient.ChatMessage("user", transcript.toString()));
 
         try {
@@ -233,7 +231,7 @@ public class GptConversationHandler implements MessageHandler {
         String[] parts = key.split(":", 2);
         String chatId = sanitize(parts.length > 0 ? parts[0] : "unknown_chat");
         String userId = sanitize(parts.length > 1 ? parts[1] : "unknown_user");
-        return profileDir.resolve(chatId).resolve(userId + ".md");
+        return PROFILE_DIR.resolve(chatId).resolve(userId + ".md");
     }
 
     private String sanitize(String raw) {
