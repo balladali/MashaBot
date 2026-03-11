@@ -45,3 +45,5 @@ services:
       YANDEX_TRANSLATE_API_KEY: ${YANDEX_TRANSLATE_API_KEY:-}
       YANDEX_SPEECH_API_KEY: ${YANDEX_SPEECH_API_KEY:-}
       VIDEO_ANALYZER_URL: ${VIDEO_ANALYZER_URL:-http://yt-video-analyzer:8000/analyze}
+    volumes:
+      - ${HOST_MASHA_MEMORY_DIR:-/opt/masha/memory}:/opt/masha/memory
