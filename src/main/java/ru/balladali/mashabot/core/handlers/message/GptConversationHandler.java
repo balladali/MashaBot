@@ -30,6 +30,9 @@ public class GptConversationHandler implements MessageHandler {
     private static final int TG_LIMIT = 4096;
     private final int summaryEveryUserMessages;
     private static final int LONG_MEMORY_PROMPT_LIMIT = 2500;
+    private static final String SUMMARY_MARKER = "## Summary @ ";
+    private static final int PROFILE_COMPACT_THRESHOLD = 10;
+    private static final int PROFILE_KEEP_RECENT_SUMMARIES = 2;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
     private static final Map<String, Long> DIALOG_LAST_ACTIVITY = new ConcurrentHashMap<>();
@@ -211,7 +214,7 @@ public class GptConversationHandler implements MessageHandler {
         }
     }
 
-    private synchronized void appendProfileSummary(String key, String summary) throws IOException {
+    private synchronized void appendProfileSummary(String key, String summary) throws Exception {
         if (summary == null || summary.isBlank()) return;
 
         Path file = profileFilePath(key);
@@ -221,11 +224,62 @@ public class GptConversationHandler implements MessageHandler {
                 ? Files.readString(file, StandardCharsets.UTF_8)
                 : "# User Long-Term Memory\n\n";
 
-        String section = "## Summary @ " + Instant.now() + "\n" + summary.strip() + "\n\n";
+        String section = SUMMARY_MARKER + Instant.now() + "\n" + summary.strip() + "\n\n";
         String updated = existing + section;
 
+        writeAtomically(file, updated);
+        maybeResummarizeProfile(file);
+    }
+
+    private void maybeResummarizeProfile(Path file) throws Exception {
+        if (!Files.exists(file)) return;
+
+        String content = Files.readString(file, StandardCharsets.UTF_8);
+        List<String> sections = extractSummarySections(content);
+        if (sections.size() < PROFILE_COMPACT_THRESHOLD) return;
+
+        int keepRecent = Math.min(PROFILE_KEEP_RECENT_SUMMARIES, sections.size());
+        int compactCount = sections.size() - keepRecent;
+        if (compactCount <= 1) return;
+
+        StringBuilder oldSummaries = new StringBuilder();
+        for (int i = 0; i < compactCount; i++) {
+            oldSummaries.append(sections.get(i)).append("\n\n");
+        }
+
+        List<ChatGptClient.ChatMessage> prompt = new ArrayList<>();
+        prompt.add(new ChatGptClient.ChatMessage("system", "Сделай ресаммари уже существующих Summary-блоков в один новый Summary. Сохрани только стабильные факты о пользователе, договоренности и долгоживущий контекст. 15-20 пунктов, без воды и дублей."));
+        prompt.add(new ChatGptClient.ChatMessage("user", oldSummaries.toString()));
+
+        String merged = chat.chat(prompt, 0.2, 450);
+
+        StringBuilder rebuilt = new StringBuilder("# User Long-Term Memory\n\n");
+        rebuilt.append(SUMMARY_MARKER).append(Instant.now()).append("\n").append(merged.strip()).append("\n\n");
+        for (int i = compactCount; i < sections.size(); i++) {
+            rebuilt.append(sections.get(i)).append("\n\n");
+        }
+
+        writeAtomically(file, rebuilt.toString());
+    }
+
+    private List<String> extractSummarySections(String content) {
+        List<String> sections = new ArrayList<>();
+        int idx = content.indexOf(SUMMARY_MARKER);
+        while (idx >= 0) {
+            int next = content.indexOf(SUMMARY_MARKER, idx + SUMMARY_MARKER.length());
+            String section = (next >= 0) ? content.substring(idx, next) : content.substring(idx);
+            section = section.strip();
+            if (!section.isBlank()) {
+                sections.add(section);
+            }
+            idx = next;
+        }
+        return sections;
+    }
+
+    private void writeAtomically(Path file, String content) throws IOException {
         Path tmp = file.resolveSibling(file.getFileName() + ".tmp");
-        Files.writeString(tmp, updated, StandardCharsets.UTF_8);
+        Files.writeString(tmp, content, StandardCharsets.UTF_8);
         Files.move(tmp, file, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
     }
 
