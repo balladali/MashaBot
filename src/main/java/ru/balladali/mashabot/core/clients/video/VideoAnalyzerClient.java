@@ -3,6 +3,9 @@ package ru.balladali.mashabot.core.clients.video;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import okhttp3.*;
 
 import java.time.Duration;
@@ -21,8 +24,10 @@ public class VideoAnalyzerClient {
     private final OkHttpClient http;
     private final ObjectMapper om;
     private final HttpUrl analyzeUrl;
+    private final Timer requestTimer;
+    private final Counter errorCounter;
 
-    public VideoAnalyzerClient(OkHttpClient httpClient, String baseUrl, Duration timeout) {
+    public VideoAnalyzerClient(OkHttpClient httpClient, String baseUrl, Duration timeout, MeterRegistry meterRegistry) {
         this.http = httpClient.newBuilder().callTimeout(timeout).build();
         this.om = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
@@ -30,25 +35,37 @@ public class VideoAnalyzerClient {
         HttpUrl u = HttpUrl.parse(baseUrl);
         if (u == null) throw new IllegalArgumentException("Bad video analyzer URL: " + baseUrl);
         this.analyzeUrl = u;
+
+        this.requestTimer = Timer.builder("masha.client.video_analyzer.request")
+                .description("Video analyzer API request latency")
+                .register(meterRegistry);
+        this.errorCounter = meterRegistry.counter("masha.client.video_analyzer.errors");
     }
 
     public AnalyzeResponse analyze(String url, String lang, String userPrompt) throws Exception {
-        AnalyzeRequest payload = new AnalyzeRequest(url, lang, userPrompt);
-        String json = om.writeValueAsString(payload);
+        return requestTimer.recordCallable(() -> {
+            try {
+                AnalyzeRequest payload = new AnalyzeRequest(url, lang, userPrompt);
+                String json = om.writeValueAsString(payload);
 
-        Request req = new Request.Builder()
-                .url(analyzeUrl)
-                .header("Content-Type", "application/json")
-                .post(RequestBody.create(json, MediaType.parse("application/json")))
-                .build();
+                Request req = new Request.Builder()
+                        .url(analyzeUrl)
+                        .header("Content-Type", "application/json")
+                        .post(RequestBody.create(json, MediaType.parse("application/json")))
+                        .build();
 
-        try (Response resp = http.newCall(req).execute()) {
-            if (!resp.isSuccessful()) {
-                String body = resp.body() != null ? resp.body().string() : "";
-                throw new IllegalStateException("Video analyzer HTTP " + resp.code() + ": " + body);
+                try (Response resp = http.newCall(req).execute()) {
+                    if (!resp.isSuccessful()) {
+                        String body = resp.body() != null ? resp.body().string() : "";
+                        throw new IllegalStateException("Video analyzer HTTP " + resp.code() + ": " + body);
+                    }
+                    String body = resp.body() != null ? resp.body().string() : "{}";
+                    return om.readValue(body, AnalyzeResponse.class);
+                }
+            } catch (Exception e) {
+                errorCounter.increment();
+                throw e;
             }
-            String body = resp.body() != null ? resp.body().string() : "{}";
-            return om.readValue(body, AnalyzeResponse.class);
-        }
+        });
     }
 }

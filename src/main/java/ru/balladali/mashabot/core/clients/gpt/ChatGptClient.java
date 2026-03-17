@@ -3,6 +3,9 @@ package ru.balladali.mashabot.core.clients.gpt;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import okhttp3.*;
 
 import java.time.Duration;
@@ -32,8 +35,15 @@ public class ChatGptClient {
     private final HttpUrl baseUrl;
     private final String apiKey;
     private final String model;
+    private final Timer requestTimer;
+    private final Counter errorCounter;
 
-    public ChatGptClient(OkHttpClient httpClient, String baseUrl, String apiKey, String model, Duration timeout) {
+    public ChatGptClient(OkHttpClient httpClient,
+                         String baseUrl,
+                         String apiKey,
+                         String model,
+                         Duration timeout,
+                         MeterRegistry meterRegistry) {
         this.http = httpClient.newBuilder().callTimeout(timeout).build();
         this.apiKey = apiKey;
         this.model = model;
@@ -43,30 +53,42 @@ public class ChatGptClient {
         HttpUrl u = HttpUrl.parse(baseUrl);
         if (u == null) throw new IllegalArgumentException("Bad baseUrl: " + baseUrl);
         this.baseUrl = u;
+
+        this.requestTimer = Timer.builder("masha.client.chatgpt.request")
+                .description("ChatGPT API request latency")
+                .register(meterRegistry);
+        this.errorCounter = meterRegistry.counter("masha.client.chatgpt.errors");
     }
 
     public String chat(List<ChatMessage> messages, Double temperature, Integer maxTokens) throws Exception {
-        ChatRequest payload = new ChatRequest(model, messages, temperature, maxTokens, null);
-        String json = om.writeValueAsString(payload);
+        return requestTimer.recordCallable(() -> {
+            try {
+                ChatRequest payload = new ChatRequest(model, messages, temperature, maxTokens, null);
+                String json = om.writeValueAsString(payload);
 
-        Request req = new Request.Builder()
-                .url(baseUrl.newBuilder().addPathSegment("v1").addPathSegment("chat").addPathSegment("completions").build())
-                .header("Authorization", "Bearer " + apiKey)
-                .header("Content-Type", "application/json")
-                .post(RequestBody.create(json, MediaType.parse("application/json")))
-                .build();
+                Request req = new Request.Builder()
+                        .url(baseUrl.newBuilder().addPathSegment("v1").addPathSegment("chat").addPathSegment("completions").build())
+                        .header("Authorization", "Bearer " + apiKey)
+                        .header("Content-Type", "application/json")
+                        .post(RequestBody.create(json, MediaType.parse("application/json")))
+                        .build();
 
-        try (Response resp = http.newCall(req).execute()) {
-            if (!resp.isSuccessful()) {
-                String body = resp.body() != null ? resp.body().string() : "";
-                throw new IllegalStateException("Chat API HTTP " + resp.code() + ": " + body);
+                try (Response resp = http.newCall(req).execute()) {
+                    if (!resp.isSuccessful()) {
+                        String body = resp.body() != null ? resp.body().string() : "";
+                        throw new IllegalStateException("Chat API HTTP " + resp.code() + ": " + body);
+                    }
+                    String body = resp.body().string();
+                    ChatResponse cr = om.readValue(body, ChatResponse.class);
+                    if (cr.choices() == null || cr.choices().isEmpty() || cr.choices().get(0).message() == null) {
+                        throw new IllegalStateException("Empty completion response");
+                    }
+                    return cr.choices().get(0).message().content();
+                }
+            } catch (Exception e) {
+                errorCounter.increment();
+                throw e;
             }
-            String body = resp.body().string();
-            ChatResponse cr = om.readValue(body, ChatResponse.class);
-            if (cr.choices() == null || cr.choices().isEmpty() || cr.choices().get(0).message() == null) {
-                throw new IllegalStateException("Empty completion response");
-            }
-            return cr.choices().get(0).message().content();
-        }
+        });
     }
 }

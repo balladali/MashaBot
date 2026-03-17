@@ -1,5 +1,6 @@
 package ru.balladali.mashabot.core.config;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import okhttp3.OkHttpClient;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -13,22 +14,24 @@ import java.time.Duration;
 @EnableConfigurationProperties({ChatGptProperties.class, VideoAnalyzerProperties.class})
 public class ClientsConfiguration {
     @Bean
-    public ChatGptClient chatGptClient(OkHttpClient client, ChatGptProperties props) {
+    public ChatGptClient chatGptClient(OkHttpClient client, ChatGptProperties props, MeterRegistry meterRegistry) {
         return new ChatGptClient(
                 client,
                 props.baseUrl(),
                 props.apiKey(),
                 props.model(),
-                Duration.ofSeconds(props.timeoutSec())
+                Duration.ofSeconds(props.timeoutSec()),
+                meterRegistry
         );
     }
 
     @Bean
-    public VideoAnalyzerClient videoAnalyzerClient(OkHttpClient client, VideoAnalyzerProperties props) {
+    public VideoAnalyzerClient videoAnalyzerClient(OkHttpClient client, VideoAnalyzerProperties props, MeterRegistry meterRegistry) {
         return new VideoAnalyzerClient(
                 client,
                 props.baseUrl(),
-                Duration.ofSeconds(props.timeoutSec() == null ? 60 : props.timeoutSec())
+                Duration.ofSeconds(props.timeoutSec() == null ? 60 : props.timeoutSec()),
+                meterRegistry
         );
     }
 

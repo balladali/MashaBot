@@ -3,6 +3,8 @@ server:
   port: ${PORT:8080}
 bot:
   voice-mode: ${VOICE_MODE:false}
+  update-workers: ${BOT_UPDATE_WORKERS:4}
+  update-queue-capacity: ${BOT_UPDATE_QUEUE_CAPACITY:200}
 proxy:
   type: ${PROXY_TYPE:NONE}            # NONE | HTTP | SOCKS
   host: ${PROXY_HOST:}
@@ -43,3 +45,12 @@ masha:
     Будь полезной, конкретной и не уходи в токсичность. 
     Избегай ненормативной лексики и оскорблений.
     Отвечай по-русски, коротко и по делу, если не просят иначе.
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: never
