@@ -5,9 +5,10 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
 import ru.balladali.mashabot.core.clients.exchange.ExchangeRateClient;
-import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
+import org.springframework.ai.chat.client.ChatClient;
 import ru.balladali.mashabot.core.clients.video.VideoAnalyzerClient;
 import ru.balladali.mashabot.core.handlers.message.*;
+import ru.balladali.mashabot.core.services.ProfileSummaryService;
 import ru.balladali.mashabot.core.services.YandexSpeechService;
 
 import java.util.ArrayList;
@@ -30,16 +31,25 @@ public class HandlerConfig {
         return new CurrencyConvertHandler(exchangeRateClient);
     }
 
+    @Bean
+    public ProfileSummaryService profileSummaryService(ChatClient chatClient, ChatGptProperties chatGptProperties) {
+        return new ProfileSummaryService(chatClient, chatGptProperties.model(), chatGptProperties.profileDir());
+    }
+
     @Order(3)
     @Bean("gptConversationHandler")
-    public GptConversationHandler gptConversationHandler(ChatGptClient client, MashaProperties mashaProperties, ChatGptProperties chatGptProperties) {
+    public GptConversationHandler gptConversationHandler(ChatClient chatClient,
+                                                         MashaProperties mashaProperties,
+                                                         ChatGptProperties chatGptProperties,
+                                                         ProfileSummaryService profileSummaryService) {
         return new GptConversationHandler(
-                client,
+                chatClient,
+                chatGptProperties.model(),
                 mashaProperties.persona(),
                 chatGptProperties.memoryMessages(),
                 chatGptProperties.memoryTtlMinutes(),
                 chatGptProperties.summaryEveryUserMessages(),
-                chatGptProperties.profileDir()
+                profileSummaryService
         );
     }
 

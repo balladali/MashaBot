@@ -1,6 +1,7 @@
 package ru.balladali.mashabot.core.services;
 
-import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -9,7 +10,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
-import java.util.ArrayList;
+
 import java.util.List;
 
 public class ProfileSummaryService {
@@ -17,11 +18,13 @@ public class ProfileSummaryService {
     private static final int PROFILE_COMPACT_THRESHOLD = 10;
     private static final int PROFILE_KEEP_RECENT_SUMMARIES = 2;
 
-    private final ChatGptClient chat;
+    private final ChatClient chatClient;
+    private final String model;
     private final Path profileDir;
 
-    public ProfileSummaryService(ChatGptClient chat, String profileDir) {
-        this.chat = chat;
+    public ProfileSummaryService(ChatClient chatClient, String model, String profileDir) {
+        this.chatClient = chatClient;
+        this.model = model;
         String dir = (profileDir == null || profileDir.isBlank()) ? "/opt/masha/memory" : profileDir;
         this.profileDir = Paths.get(dir);
     }
@@ -38,11 +41,17 @@ public class ProfileSummaryService {
         }
     }
 
-    public String generateDialogSummary(String transcript) throws Exception {
-        List<ChatGptClient.ChatMessage> summaryPrompt = new ArrayList<>();
-        summaryPrompt.add(new ChatGptClient.ChatMessage("system", "Сделай краткую долговременную выжимку диалога. Выдели только стабильные факты о пользователе, договоренности и долгоживущий контекст. Без воды, 15-20 пунктов."));
-        summaryPrompt.add(new ChatGptClient.ChatMessage("user", transcript));
-        return chat.chat(summaryPrompt, 0.2, 350);
+    public String generateDialogSummary(String transcript) {
+        return chatClient.prompt()
+                .options(OpenAiChatOptions.builder()
+                        .model(model)
+                        .temperature(0.2)
+                        .maxTokens(350)
+                        .build())
+                .system("Сделай краткую долговременную выжимку диалога. Выдели только стабильные факты о пользователе, договоренности и долгоживущий контекст. Без воды, 15-20 пунктов.")
+                .user(transcript)
+                .call()
+                .content();
     }
 
     public synchronized void appendSummaryAndMaybeResummarize(String key, String summary) throws Exception {
@@ -77,11 +86,16 @@ public class ProfileSummaryService {
             oldSummaries.append(sections.get(i)).append("\n\n");
         }
 
-        List<ChatGptClient.ChatMessage> prompt = new ArrayList<>();
-        prompt.add(new ChatGptClient.ChatMessage("system", "Сделай ресаммари уже существующих Summary-блоков в один новый Summary. Сохрани только стабильные факты о пользователе, договоренности и долгоживущий контекст. 15-20 пунктов, без воды и дублей."));
-        prompt.add(new ChatGptClient.ChatMessage("user", oldSummaries.toString()));
-
-        String merged = chat.chat(prompt, 0.2, 450);
+        String merged = chatClient.prompt()
+                .options(OpenAiChatOptions.builder()
+                        .model(model)
+                        .temperature(0.2)
+                        .maxTokens(450)
+                        .build())
+                .system("Сделай ресаммари уже существующих Summary-блоков в один новый Summary. Сохрани только стабильные факты о пользователе, договоренности и долгоживущий контекст. 15-20 пунктов, без воды и дублей.")
+                .user(oldSummaries.toString())
+                .call()
+                .content();
 
         StringBuilder rebuilt = new StringBuilder("# User Long-Term Memory\n\n");
         rebuilt.append(SUMMARY_MARKER).append(Instant.now()).append("\n").append(merged.strip()).append("\n\n");
@@ -93,7 +107,7 @@ public class ProfileSummaryService {
     }
 
     private List<String> extractSummarySections(String content) {
-        List<String> sections = new ArrayList<>();
+        java.util.ArrayList<String> sections = new java.util.ArrayList<>();
         int idx = content.indexOf(SUMMARY_MARKER);
         while (idx >= 0) {
             int next = content.indexOf(SUMMARY_MARKER, idx + SUMMARY_MARKER.length());

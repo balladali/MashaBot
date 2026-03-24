@@ -1,6 +1,11 @@
 package ru.balladali.mashabot.core.handlers.message;
 
 import org.jetbrains.annotations.NotNull;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.messages.AssistantMessage;
+import org.springframework.ai.chat.messages.SystemMessage;
+import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.openai.OpenAiChatOptions;
 import org.telegram.telegrambots.meta.api.methods.ActionType;
 import org.telegram.telegrambots.meta.api.methods.GetMe;
 import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
@@ -8,7 +13,6 @@ import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
-import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
 import ru.balladali.mashabot.core.services.ProfileSummaryService;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 
@@ -17,7 +21,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class GptConversationHandler implements MessageHandler {
-    private final ChatGptClient chat;
+    private final ChatClient chatClient;
+    private final String model;
     private final String personaSystemPrompt;
     private final int memoryMessages;
     private final long memoryTtlMs;
@@ -27,24 +32,26 @@ public class GptConversationHandler implements MessageHandler {
     private static final int TG_LIMIT = 4096;
     private static final int LONG_MEMORY_PROMPT_LIMIT = 2500;
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-    private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
+    private static final Map<String, Deque<DialogMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
     private static final Map<String, Long> DIALOG_LAST_ACTIVITY = new ConcurrentHashMap<>();
-    private static final Map<String, Deque<ChatGptClient.ChatMessage>> SUMMARY_BUFFER = new ConcurrentHashMap<>();
+    private static final Map<String, Deque<DialogMessage>> SUMMARY_BUFFER = new ConcurrentHashMap<>();
     private static final Map<String, Integer> USER_MESSAGES_SINCE_SUMMARY = new ConcurrentHashMap<>();
     private static volatile Long BOT_ID = null;
 
-    public GptConversationHandler(ChatGptClient chat,
+    public GptConversationHandler(ChatClient chatClient,
+                                  String model,
                                   String personaSystemPrompt,
                                   int memoryMessages,
                                   int memoryTtlMinutes,
                                   int summaryEveryUserMessages,
-                                  String profileDir) {
-        this.chat = chat;
+                                  ProfileSummaryService profileSummaryService) {
+        this.chatClient = chatClient;
+        this.model = model;
         this.personaSystemPrompt = personaSystemPrompt;
         this.memoryMessages = Math.max(1, memoryMessages);
         this.memoryTtlMs = Math.max(1, memoryTtlMinutes) * 60_000L;
         this.summaryEveryUserMessages = Math.max(1, summaryEveryUserMessages);
-        this.profileSummaryService = new ProfileSummaryService(chat, profileDir);
+        this.profileSummaryService = profileSummaryService;
     }
 
     @Override
@@ -99,11 +106,11 @@ public class GptConversationHandler implements MessageHandler {
         }
 
         String memoryKey = buildMemoryKey(entity.getMessage());
-        List<ChatGptClient.ChatMessage> messages = getChatMessages(memoryKey, reply, caption, userQuery);
+        List<DialogMessage> messages = getChatMessages(memoryKey, reply, caption, userQuery);
         try {
             sendTyping(entity);
 
-            String answer = chat.chat(messages, 0.8, 600);
+            String answer = callModel(messages, 0.8, 600);
             sendAnswer(entity, answer);
 
             appendMemory(memoryKey, "user", userQuery);
@@ -121,6 +128,27 @@ public class GptConversationHandler implements MessageHandler {
         }
     }
 
+    private String callModel(List<DialogMessage> messages, double temperature, int maxTokens) {
+        List<org.springframework.ai.chat.messages.Message> aiMessages = new ArrayList<>();
+        for (DialogMessage message : messages) {
+            switch (message.role()) {
+                case "system" -> aiMessages.add(new SystemMessage(message.content()));
+                case "assistant" -> aiMessages.add(new AssistantMessage(message.content()));
+                default -> aiMessages.add(new UserMessage(message.content()));
+            }
+        }
+
+        return chatClient.prompt()
+                .messages(aiMessages)
+                .options(OpenAiChatOptions.builder()
+                        .model(model)
+                        .temperature(temperature)
+                        .maxTokens(maxTokens)
+                        .build())
+                .call()
+                .content();
+    }
+
     private String buildMemoryKey(Message message) {
         if (message == null) return "unknown";
         Long chatId = message.getChatId();
@@ -128,7 +156,7 @@ public class GptConversationHandler implements MessageHandler {
         return String.valueOf(chatId) + ":" + String.valueOf(userId);
     }
 
-    private Deque<ChatGptClient.ChatMessage> getActiveHistory(String key) {
+    private Deque<DialogMessage> getActiveHistory(String key) {
         long now = System.currentTimeMillis();
         Long last = DIALOG_LAST_ACTIVITY.get(key);
         if (last != null && now - last > memoryTtlMs) {
@@ -142,8 +170,8 @@ public class GptConversationHandler implements MessageHandler {
     private void appendMemory(String key, String role, String content) {
         if (content == null || content.isBlank()) return;
 
-        Deque<ChatGptClient.ChatMessage> history = new ArrayDeque<>(getActiveHistory(key));
-        history.addLast(new ChatGptClient.ChatMessage(role, content));
+        Deque<DialogMessage> history = new ArrayDeque<>(getActiveHistory(key));
+        history.addLast(new DialogMessage(role, content));
 
         while (history.size() > memoryMessages) {
             history.removeFirst();
@@ -156,8 +184,8 @@ public class GptConversationHandler implements MessageHandler {
     private void appendSummaryBuffer(String key, String role, String content) {
         if (content == null || content.isBlank()) return;
 
-        Deque<ChatGptClient.ChatMessage> buffer = new ArrayDeque<>(SUMMARY_BUFFER.getOrDefault(key, new ArrayDeque<>()));
-        buffer.addLast(new ChatGptClient.ChatMessage(role, content));
+        Deque<DialogMessage> buffer = new ArrayDeque<>(SUMMARY_BUFFER.getOrDefault(key, new ArrayDeque<>()));
+        buffer.addLast(new DialogMessage(role, content));
 
         while (buffer.size() > 240) {
             buffer.removeFirst();
@@ -175,11 +203,11 @@ public class GptConversationHandler implements MessageHandler {
     }
 
     private void summarizeAndPersist(String key) {
-        Deque<ChatGptClient.ChatMessage> buffer = SUMMARY_BUFFER.getOrDefault(key, new ArrayDeque<>());
+        Deque<DialogMessage> buffer = SUMMARY_BUFFER.getOrDefault(key, new ArrayDeque<>());
         if (buffer.isEmpty()) return;
 
         StringBuilder transcript = new StringBuilder();
-        for (ChatGptClient.ChatMessage m : buffer) {
+        for (DialogMessage m : buffer) {
             transcript.append(m.role()).append(": ").append(m.content()).append("\n");
         }
 
@@ -194,16 +222,16 @@ public class GptConversationHandler implements MessageHandler {
     }
 
     @NotNull
-    private List<ChatGptClient.ChatMessage> getChatMessages(String memoryKey, String reply, String caption, String userQuery) {
-        List<ChatGptClient.ChatMessage> messages = new ArrayList<>();
-        messages.add(new ChatGptClient.ChatMessage("system", personaSystemPrompt));
+    private List<DialogMessage> getChatMessages(String memoryKey, String reply, String caption, String userQuery) {
+        List<DialogMessage> messages = new ArrayList<>();
+        messages.add(new DialogMessage("system", personaSystemPrompt));
 
         String longMemory = profileSummaryService.loadForPrompt(memoryKey, LONG_MEMORY_PROMPT_LIMIT);
         if (!longMemory.isBlank()) {
-            messages.add(new ChatGptClient.ChatMessage("system", "Долговременная память о пользователе:\n" + longMemory));
+            messages.add(new DialogMessage("system", "Долговременная память о пользователе:\n" + longMemory));
         }
 
-        Deque<ChatGptClient.ChatMessage> history = getActiveHistory(memoryKey);
+        Deque<DialogMessage> history = getActiveHistory(memoryKey);
         if (!history.isEmpty()) {
             messages.addAll(history);
         }
@@ -216,10 +244,10 @@ public class GptConversationHandler implements MessageHandler {
             context += "\n" + caption;
         }
         if (!context.isBlank()) {
-            messages.add(new ChatGptClient.ChatMessage("system", "Контекст сообщения, на которое пользователь ответил: «" + context + "»."));
+            messages.add(new DialogMessage("system", "Контекст сообщения, на которое пользователь ответил: «" + context + "»."));
         }
 
-        messages.add(new ChatGptClient.ChatMessage("user", userQuery));
+        messages.add(new DialogMessage("user", userQuery));
         return messages;
     }
 
@@ -277,4 +305,6 @@ public class GptConversationHandler implements MessageHandler {
             e.printStackTrace();
         }
     }
+
+    private record DialogMessage(String role, String content) {}
 }
