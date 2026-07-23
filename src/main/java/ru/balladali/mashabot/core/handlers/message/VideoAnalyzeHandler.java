@@ -42,6 +42,7 @@ public class VideoAnalyzeHandler implements MessageHandler {
         } catch (Exception e) {
             e.printStackTrace();
             sendAnswer(entity, "Не удалось проанализировать видео. Попробуй ещё раз чуть позже 🙏");
+            throw new IllegalStateException("Failed to analyze video", e);
         }
     }
 

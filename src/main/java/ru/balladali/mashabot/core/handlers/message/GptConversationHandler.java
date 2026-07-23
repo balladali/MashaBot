@@ -118,6 +118,7 @@ public class GptConversationHandler implements MessageHandler {
         } catch (Exception e) {
             e.printStackTrace();
             sendAnswer(entity, "Ой, тут что-то пошло не так… Давай попробуем ещё раз чуток позже?");
+            throw new IllegalStateException("Failed to handle GPT conversation", e);
         }
     }
 
