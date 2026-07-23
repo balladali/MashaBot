@@ -34,7 +34,13 @@ public class ChatGptClient {
     private final String model;
 
     public ChatGptClient(OkHttpClient httpClient, String baseUrl, String apiKey, String model, Duration timeout) {
-        this.http = httpClient.newBuilder().callTimeout(timeout).build();
+        this.http = httpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(15))
+                .readTimeout(timeout)
+                .writeTimeout(Duration.ofSeconds(30))
+                .callTimeout(timeout.plusSeconds(10))
+                .retryOnConnectionFailure(true)
+                .build();
         this.apiKey = apiKey;
         this.model = model;
         this.om = new ObjectMapper()
