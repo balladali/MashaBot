@@ -40,6 +40,7 @@ public class HandlerConfig {
         return new GptConversationHandler(
                 client,
                 mashaProperties.persona(),
+                chatGptProperties.maxTokens(),
                 chatGptProperties.memoryMessages(),
                 chatGptProperties.memoryTtlMinutes(),
                 chatGptProperties.summaryEveryUserMessages(),

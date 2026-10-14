@@ -8,6 +8,7 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
 import org.springframework.beans.factory.annotation.Autowired;
 import ru.balladali.mashabot.core.config.ChatGptProperties;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBootTest(properties = {
         "credential.telegram.token=test-only", "clients.chatgpt.base-url=http://127.0.0.1:1",
@@ -19,5 +20,6 @@ class BotApplicationTests {
     @Autowired ChatGptProperties chatGptProperties;
     @Test void contextLoadsWithoutExternalServices() {
         assertFalse(chatGptProperties.reasoningEnabled());
+        assertEquals(1500, chatGptProperties.maxTokens());
     }
 }

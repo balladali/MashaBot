@@ -1,6 +1,13 @@
 package ru.balladali.mashabot.core.handlers.message;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.api.io.TempDir;
+import java.nio.file.Path;
+import ru.balladali.mashabot.core.config.ChatGptProperties;
+import ru.balladali.mashabot.core.config.MashaProperties;
+import ru.balladali.mashabot.core.config.HandlerConfig;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
@@ -16,6 +23,23 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class GptConversationHandlerTest {
+    @TempDir Path memoryDir;
+
+    @ParameterizedTest
+    @ValueSource(ints = {1500, 2300})
+    void handlerFactoryPassesConfiguredReplyBudgetToGpt(int maxTokens) throws Exception {
+        ChatGptClient chat = mock(ChatGptClient.class);
+        when(chat.chat(anyList(), anyDouble(), anyInt())).thenReturn("answer");
+        ChatGptProperties properties = new ChatGptProperties("http://127.0.0.1", "test-only", "test-model",
+                false, maxTokens, 120, 20, 30, 100, memoryDir.toString());
+        try (KeyedTaskExecutor summaries = new KeyedTaskExecutor("test-summary", 1, 8, 1)) {
+            GptConversationHandler handler = new HandlerConfig().gptConversationHandler(chat,
+                    new MashaProperties("persona"), properties, summaries, mock(TelegramDelivery.class));
+            handler.handle(entity("Маша привет"));
+            verify(chat).chat(anyList(), eq(0.8), eq(maxTokens));
+        }
+    }
+
     @Test
     void slowSummaryDoesNotBlockAnswersOrEraseNewMessages() throws Exception {
         ChatGptClient chat = mock(ChatGptClient.class);
@@ -29,7 +53,7 @@ class GptConversationHandlerTest {
         });
         try (KeyedTaskExecutor summaries = new KeyedTaskExecutor("test-summary", 1, 8, 1)) {
             try {
-                GptConversationHandler handler = new GptConversationHandler(chat, "persona", 20, 30, 1, profiles, summaries, delivery);
+                GptConversationHandler handler = new GptConversationHandler(chat, "persona", 1500, 20, 30, 1, profiles, summaries, delivery);
                 handler.handle(entity("Маша первый"));
                 assertTrue(entered.await(3, TimeUnit.SECONDS));
                 handler.handle(entity("Маша второй")); // Must return while summary is blocked.
@@ -55,7 +79,7 @@ class GptConversationHandlerTest {
         when(chat.chat(anyList(), anyDouble(), anyInt())).thenReturn("answer");
         when(profiles.generateDialogSummary(anyString())).thenThrow(new IllegalStateException()).thenReturn("summary");
         try (KeyedTaskExecutor summaries = new KeyedTaskExecutor("test-summary", 1, 8, 1)) {
-            GptConversationHandler handler = new GptConversationHandler(chat, "persona", 20, 30, 1, profiles, summaries, mock(TelegramDelivery.class));
+            GptConversationHandler handler = new GptConversationHandler(chat, "persona", 1500, 20, 30, 1, profiles, summaries, mock(TelegramDelivery.class));
             handler.handle(entity("Маша первый"));
             awaitIdle(summaries);
             handler.handle(entity("Маша второй"));
@@ -76,7 +100,7 @@ class GptConversationHandlerTest {
         when(chat.chat(anyList(), anyDouble(), anyInt())).thenReturn("lost answer", "", "delivered answer");
         doThrow(new TelegramDelivery.DeliveryException(new Exception())).doNothing().when(delivery).send(any(), any());
         try (KeyedTaskExecutor summaries = new KeyedTaskExecutor("test-summary", 1, 8, 1)) {
-            GptConversationHandler handler = new GptConversationHandler(chat, "persona", 20, 30, 100, profiles, summaries, delivery);
+            GptConversationHandler handler = new GptConversationHandler(chat, "persona", 1500, 20, 30, 100, profiles, summaries, delivery);
             assertThrows(TelegramDelivery.DeliveryException.class, () -> handler.handle(entity("Маша первый")));
             assertThrows(IllegalStateException.class, () -> handler.handle(entity("Маша второй")));
             handler.handle(entity("Маша третий"));

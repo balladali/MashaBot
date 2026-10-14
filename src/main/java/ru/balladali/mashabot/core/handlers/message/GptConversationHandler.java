@@ -22,6 +22,7 @@ public class GptConversationHandler implements MessageHandler {
     private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private final ChatGptClient chat;
     private final String personaSystemPrompt;
+    private final int maxTokens;
     private final int memoryMessages;
     private final long memoryTtlMs;
     private final int summaryEveryUserMessages;
@@ -41,18 +42,20 @@ public class GptConversationHandler implements MessageHandler {
         boolean summaryPending;
     }
 
-    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages,
+    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int maxTokens, int memoryMessages,
                                   int memoryTtlMinutes, int summaryEveryUserMessages, String profileDir,
                                   KeyedTaskExecutor summaries, TelegramDelivery delivery) {
-        this(chat, personaSystemPrompt, memoryMessages, memoryTtlMinutes, summaryEveryUserMessages,
+        this(chat, personaSystemPrompt, maxTokens, memoryMessages, memoryTtlMinutes, summaryEveryUserMessages,
                 new ProfileSummaryService(chat, profileDir), summaries, delivery);
     }
 
-    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages,
+    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int maxTokens, int memoryMessages,
                                   int memoryTtlMinutes, int summaryEveryUserMessages, ProfileSummaryService profiles,
                                   KeyedTaskExecutor summaries, TelegramDelivery delivery) {
         this.chat = chat;
         this.personaSystemPrompt = personaSystemPrompt;
+        if (maxTokens < 1) throw new IllegalArgumentException("maxTokens must be positive");
+        this.maxTokens = maxTokens;
         this.memoryMessages = Math.max(1, memoryMessages);
         this.memoryTtlMs = Math.max(1, memoryTtlMinutes) * 60_000L;
         this.summaryEveryUserMessages = Math.max(1, summaryEveryUserMessages);
@@ -104,7 +107,7 @@ public class GptConversationHandler implements MessageHandler {
         messages.add(new ChatGptClient.ChatMessage("user", query));
         String answer;
         try {
-            answer = chat.chat(messages, 0.8, 600);
+            answer = chat.chat(messages, 0.8, maxTokens);
             if (answer == null || answer.isBlank()) throw new IllegalStateException("Empty completion response");
         } catch (Exception e) {
             // Do not print upstream bodies, prompts or credentials from exception messages.
