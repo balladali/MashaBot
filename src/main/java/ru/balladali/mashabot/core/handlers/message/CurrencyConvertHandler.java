@@ -1,10 +1,10 @@
 package ru.balladali.mashabot.core.handlers.message;
 
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.exchange.ExchangeRateClient;
 import ru.balladali.mashabot.core.services.CurrencyMorphNormalizerAot;
 import ru.balladali.mashabot.telegram.TelegramMessage;
+import ru.balladali.mashabot.telegram.TelegramDelivery;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -26,9 +26,11 @@ public class CurrencyConvertHandler implements MessageHandler {
 
     private final ExchangeRateClient rateClient;
     private final CurrencyMorphNormalizerAot ruMorph;
+    private final TelegramDelivery delivery;
 
-    public CurrencyConvertHandler(ExchangeRateClient rateClient) {
+    public CurrencyConvertHandler(ExchangeRateClient rateClient, TelegramDelivery delivery) {
         this.rateClient = rateClient;
+        this.delivery = delivery;
         this.ruMorph = CurrencyMorphNormalizerAot.defaultRu();
         initTokenMap();
     }
@@ -260,6 +262,8 @@ public class CurrencyConvertHandler implements MessageHandler {
 
         if (!lines.isEmpty()) {
             sendAnswer(entity, String.join("\n", dedup(lines)));
+        } else {
+            throw new IllegalStateException("Currency rates unavailable");
         }
     }
 
@@ -345,11 +349,7 @@ public class CurrencyConvertHandler implements MessageHandler {
     @Override
     public void sendAnswer(TelegramMessage messageEntity, String answer) {
         SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
-        try {
-            messageEntity.getClient().execute(sendMessage);
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
+        delivery.send(messageEntity.getClient(), sendMessage);
     }
 
     /* ================== Вспомогательные структуры ================== */

@@ -23,7 +23,7 @@ public class VideoAnalyzerClient {
     private final HttpUrl analyzeUrl;
 
     public VideoAnalyzerClient(OkHttpClient httpClient, String baseUrl, Duration timeout) {
-        this.http = httpClient.newBuilder().callTimeout(timeout).build();
+        this.http = httpClient.newBuilder().readTimeout(timeout).callTimeout(timeout).build();
         this.om = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                 .setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -33,6 +33,7 @@ public class VideoAnalyzerClient {
     }
 
     public AnalyzeResponse analyze(String url, String lang, String userPrompt) throws Exception {
+        long started = System.nanoTime();
         AnalyzeRequest payload = new AnalyzeRequest(url, lang, userPrompt);
         String json = om.writeValueAsString(payload);
 
@@ -43,12 +44,18 @@ public class VideoAnalyzerClient {
                 .build();
 
         try (Response resp = http.newCall(req).execute()) {
+            org.slf4j.LoggerFactory.getLogger(VideoAnalyzerClient.class).info("event=video_response code={}", resp.code());
             if (!resp.isSuccessful()) {
-                String body = resp.body() != null ? resp.body().string() : "";
-                throw new IllegalStateException("Video analyzer HTTP " + resp.code() + ": " + body);
+                throw new IllegalStateException("Video analyzer HTTP " + resp.code());
             }
             String body = resp.body() != null ? resp.body().string() : "{}";
             return om.readValue(body, AnalyzeResponse.class);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(VideoAnalyzerClient.class).warn("event=video_failed type={}", e.getClass().getSimpleName());
+            throw e;
+        } finally {
+            org.slf4j.LoggerFactory.getLogger(VideoAnalyzerClient.class).info("event=video_finished duration_ms={}",
+                    (System.nanoTime() - started) / 1_000_000);
         }
     }
 }

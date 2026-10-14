@@ -24,7 +24,7 @@ import java.util.Map;
 
 @Component
 public class CbrExchangeRateClient implements ExchangeRateClient {
-    private final HttpClient http = HttpClient.newHttpClient();
+    private final HttpClient http = HttpClient.newBuilder().connectTimeout(java.time.Duration.ofSeconds(10)).build();
     private static final ZoneId MSK = ZoneId.of("Europe/Moscow");
     private static final DateTimeFormatter CBR_FMT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
     // кэш всей таблицы на дату (по Москве)
@@ -54,7 +54,7 @@ public class CbrExchangeRateClient implements ExchangeRateClient {
         String query = "date_req=" + CBR_FMT.format(date);
         URI uri = new URI("https", "www.cbr.ru", "/scripts/XML_daily.asp", query, null);
 
-        HttpRequest req = HttpRequest.newBuilder(uri).GET().build();
+        HttpRequest req = HttpRequest.newBuilder(uri).timeout(java.time.Duration.ofSeconds(30)).GET().build();
         HttpResponse<byte[]> resp = http.send(req, HttpResponse.BodyHandlers.ofByteArray());
         if (resp.statusCode() != 200) {
             throw new IllegalStateException("CBR HTTP " + resp.statusCode());

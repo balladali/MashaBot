@@ -52,6 +52,7 @@ public class ChatGptClient {
     }
 
     public String chat(List<ChatMessage> messages, Double temperature, Integer maxTokens) throws Exception {
+        long started = System.nanoTime();
         ChatRequest payload = new ChatRequest(model, messages, temperature, maxTokens, null);
         String json = om.writeValueAsString(payload);
 
@@ -63,16 +64,25 @@ public class ChatGptClient {
                 .build();
 
         try (Response resp = http.newCall(req).execute()) {
+            org.slf4j.LoggerFactory.getLogger(ChatGptClient.class).info("event=gpt_response code={} duration_ms={}",
+                    resp.code(), (System.nanoTime() - started) / 1_000_000);
             if (!resp.isSuccessful()) {
-                String body = resp.body() != null ? resp.body().string() : "";
-                throw new IllegalStateException("Chat API HTTP " + resp.code() + ": " + body);
+                throw new IllegalStateException("Chat API HTTP " + resp.code());
             }
             String body = resp.body().string();
             ChatResponse cr = om.readValue(body, ChatResponse.class);
             if (cr.choices() == null || cr.choices().isEmpty() || cr.choices().get(0).message() == null) {
                 throw new IllegalStateException("Empty completion response");
             }
-            return cr.choices().get(0).message().content();
+            String answer = cr.choices().get(0).message().content();
+            if (answer == null || answer.isBlank()) throw new IllegalStateException("Empty completion response");
+            return answer;
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(ChatGptClient.class).warn("event=gpt_failed type={}", e.getClass().getSimpleName());
+            throw e;
+        } finally {
+            org.slf4j.LoggerFactory.getLogger(ChatGptClient.class).info("event=gpt_finished duration_ms={}",
+                    (System.nanoTime() - started) / 1_000_000);
         }
     }
 }

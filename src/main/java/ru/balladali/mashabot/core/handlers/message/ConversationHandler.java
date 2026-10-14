@@ -12,10 +12,12 @@ import org.springframework.web.client.RestTemplate;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.methods.send.SendVoice;
 import org.telegram.telegrambots.meta.api.objects.InputFile;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.entity.BotContext;
 import ru.balladali.mashabot.core.services.YandexSpeechService;
 import ru.balladali.mashabot.telegram.TelegramMessage;
+import ru.balladali.mashabot.telegram.TelegramDelivery;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import java.util.concurrent.ConcurrentHashMap;
 
 import java.io.InputStream;
 import java.util.*;
@@ -34,12 +36,19 @@ public class ConversationHandler implements MessageHandler {
     private static final Pattern TRIGGER = Pattern.compile("^(?:машка[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
 
-    private Map<String, BotContext> contextMap = new HashMap<>();
+    private final Map<String, BotContext> contextMap = new ConcurrentHashMap<>();
+    private final TelegramDelivery delivery;
+    private final RestTemplate restTemplate;
 
     private YandexSpeechService yandexSpeechService;
 
-    public ConversationHandler(YandexSpeechService yandexSpeechService) {
+    public ConversationHandler(YandexSpeechService yandexSpeechService, TelegramDelivery delivery) {
         this.yandexSpeechService = yandexSpeechService;
+        this.delivery = delivery;
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10_000);
+        factory.setReadTimeout(30_000);
+        this.restTemplate = new RestTemplate(factory);
     }
 
     @Override
@@ -64,11 +73,7 @@ public class ConversationHandler implements MessageHandler {
     @Override
     public void sendAnswer(TelegramMessage messageEntity, String answer) {
         SendMessage sendMessage = new SendMessage(messageEntity.getChatId(), answer);
-        try {
-            messageEntity.getClient().execute(sendMessage);
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
+        delivery.send(messageEntity.getClient(), sendMessage);
     }
 
     private void sendVoiceAnswer(TelegramMessage messageEntity, String answer) {
@@ -80,53 +85,48 @@ public class ConversationHandler implements MessageHandler {
             messageEntity.getClient().execute(sendVoice);
 
         } catch (Exception e) {
-            e.printStackTrace();
+            throw new IllegalStateException("Voice delivery failed", e);
         }
     }
 
     public String getAnswer(String message, String chatId) {
-        BotContext botContext = null;
-        if (!contextMap.containsKey(chatId)) {
-            botContext = BotContext.builder().build();
+        BotContext botContext = contextMap.computeIfAbsent(chatId, ignored -> BotContext.builder().build());
+        synchronized (botContext) {
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+            long timestamp = System.currentTimeMillis();
+            Random rand = new Random();
+
+            MultiValueMap<String, String> parameters = new LinkedMultiValueMap<String, String>();
+            parameters.add("request", message);
+            parameters.add("request_1", botContext.getRequest1());
+            parameters.add("answer_1", botContext.getAnswer1());
+            parameters.add("request_2", botContext.getRequest2());
+            parameters.add("answer_2", botContext.getAnswer2());
+            parameters.add("request_3", botContext.getRequest3());
+            parameters.add("answer_3", botContext.getAnswer3());
+            parameters.add("user_name", USER_NAME);
+            parameters.add("bot_name", "pBot");
+            parameters.add("dialog_lang", "ru");
+            parameters.add("a", PUBLIC_API);
+            parameters.add("b", String.valueOf(Integer.toUnsignedLong(crc(timestamp + "b"))));
+            parameters.add("c", String.valueOf(Integer.toUnsignedLong(getSign(timestamp))));
+            parameters.add("d", String.valueOf(Integer.toUnsignedLong(crc(System.currentTimeMillis() + "d"))));
+            parameters.add("e", String.format(Locale.ENGLISH, "%.15f", rand.nextFloat()));
+            parameters.add("t", String.valueOf(timestamp));
+            parameters.add("x", String.format(Locale.ENGLISH, "%.15f", rand.nextFloat() * 0xa));
+
+            HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(parameters, headers);
+
+            ResponseEntity<String> response = restTemplate.postForEntity(ANSWER_URL, request, String.class);
+            String content = response.getBody();
+            JSONObject json = new JSONObject(content);
+            String answer = json.getString(ANSWER_FIELD);
+            updateContext(botContext, message, answer);
             contextMap.put(chatId, botContext);
-        } else {
-            botContext = contextMap.get(chatId);
+            return answer;
         }
-        RestTemplate restTemplate = new RestTemplate();
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
-        long timestamp = System.currentTimeMillis();
-        Random rand = new Random();
-
-        MultiValueMap<String, String> parameters = new LinkedMultiValueMap<String, String>();
-        parameters.add("request", message);
-        parameters.add("request_1", botContext.getRequest1());
-        parameters.add("answer_1", botContext.getAnswer1());
-        parameters.add("request_2", botContext.getRequest2());
-        parameters.add("answer_2", botContext.getAnswer2());
-        parameters.add("request_3", botContext.getRequest3());
-        parameters.add("answer_3", botContext.getAnswer3());
-        parameters.add("user_name", USER_NAME);
-        parameters.add("bot_name", "pBot");
-        parameters.add("dialog_lang", "ru");
-        parameters.add("a", PUBLIC_API);
-        parameters.add("b", String.valueOf(Integer.toUnsignedLong(crc(timestamp + "b"))));
-        parameters.add("c", String.valueOf(Integer.toUnsignedLong(getSign(timestamp))));
-        parameters.add("d", String.valueOf(Integer.toUnsignedLong(crc(System.currentTimeMillis() + "d"))));
-        parameters.add("e", String.format(Locale.ENGLISH, "%.15f", rand.nextFloat()));
-        parameters.add("t", String.valueOf(timestamp));
-        parameters.add("x", String.format(Locale.ENGLISH, "%.15f", rand.nextFloat() * 0xa));
-
-        HttpEntity<MultiValueMap<String, String>> request = new HttpEntity<>(parameters, headers);
-
-        ResponseEntity<String> response = restTemplate.postForEntity(ANSWER_URL, request, String.class);
-        String content = response.getBody();
-        JSONObject json = new JSONObject(content);
-        String answer = json.getString(ANSWER_FIELD);
-        updateContext(botContext, message, answer);
-        contextMap.put(chatId, botContext);
-        return answer;
     }
 
     private int crc(String param) {

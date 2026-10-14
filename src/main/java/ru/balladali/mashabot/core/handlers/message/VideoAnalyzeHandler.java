@@ -1,12 +1,10 @@
 package ru.balladali.mashabot.core.handlers.message;
 
-import org.telegram.telegrambots.meta.api.methods.ActionType;
 import org.telegram.telegrambots.meta.api.methods.ParseMode;
-import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.video.VideoAnalyzerClient;
 import ru.balladali.mashabot.telegram.TelegramMessage;
+import ru.balladali.mashabot.telegram.TelegramDelivery;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -21,9 +19,11 @@ public class VideoAnalyzeHandler implements MessageHandler {
     private static final Pattern ANALYZE_TRIGGER = Pattern.compile("(проанализир(?:уй|овать|уйте)|анализ(?:ируй|ировать|)?)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
 
     private final VideoAnalyzerClient client;
+    private final TelegramDelivery delivery;
 
-    public VideoAnalyzeHandler(VideoAnalyzerClient client) {
+    public VideoAnalyzeHandler(VideoAnalyzerClient client, TelegramDelivery delivery) {
         this.client = client;
+        this.delivery = delivery;
     }
 
     @Override
@@ -34,14 +34,13 @@ public class VideoAnalyzeHandler implements MessageHandler {
         String userPrompt = extractUserPrompt(entity);
 
         try {
-            sendTyping(entity);
 
             VideoAnalyzerClient.AnalyzeResponse res = client.analyze(ytUrl, "ru,en", userPrompt);
             String answer = formatResult(res);
             sendAnswer(entity, answer);
+        } catch (TelegramDelivery.DeliveryException e) {
+            throw e;
         } catch (Exception e) {
-            e.printStackTrace();
-            sendAnswer(entity, "Не удалось проанализировать видео. Попробуй ещё раз чуть позже 🙏");
             throw new IllegalStateException("Failed to analyze video", e);
         }
     }
@@ -123,12 +122,7 @@ public class VideoAnalyzeHandler implements MessageHandler {
         for (String part : splitForTelegram(md, TG_LIMIT)) {
             SendMessage msg = new SendMessage(messageEntity.getChatId(), part);
             msg.setParseMode(ParseMode.MARKDOWNV2);
-            try {
-                messageEntity.getClient().execute(msg);
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-                break;
-            }
+            delivery.send(messageEntity.getClient(), msg);
         }
     }
 
@@ -208,12 +202,4 @@ public class VideoAnalyzeHandler implements MessageHandler {
         return parts;
     }
 
-    private void sendTyping(TelegramMessage messageEntity) {
-        SendChatAction action = new SendChatAction(messageEntity.getChatId(), ActionType.TYPING.toString());
-        try {
-            messageEntity.getClient().execute(action);
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
-    }
 }

@@ -4,6 +4,14 @@ server:
 bot:
   voice-mode: ${VOICE_MODE:false}
   error-chat-id: ${ERROR_CHAT_ID:}
+  processing:
+    workers: ${BOT_WORKERS:4}
+    capacity: ${BOT_QUEUE_CAPACITY:64}
+    per-dialog-capacity: ${BOT_DIALOG_QUEUE_CAPACITY:8}
+    summary-capacity: ${BOT_SUMMARY_QUEUE_CAPACITY:16}
+logging:
+  pattern:
+    level: '%5p [request:%X{requestId:-}]'
 proxy:
   type: ${PROXY_TYPE:NONE}            # NONE | HTTP | SOCKS
   host: ${PROXY_HOST:}

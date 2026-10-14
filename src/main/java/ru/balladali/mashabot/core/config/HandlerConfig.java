@@ -9,6 +9,9 @@ import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
 import ru.balladali.mashabot.core.clients.video.VideoAnalyzerClient;
 import ru.balladali.mashabot.core.handlers.message.*;
 import ru.balladali.mashabot.core.services.YandexSpeechService;
+import ru.balladali.mashabot.core.services.KeyedTaskExecutor;
+import ru.balladali.mashabot.telegram.TelegramDelivery;
+import org.springframework.beans.factory.annotation.Qualifier;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,33 +23,34 @@ public class HandlerConfig {
 
     @Bean(name = "conversationHandler")
     @Order(Integer.MAX_VALUE)
-    public ConversationHandler getConversationHandler(YandexSpeechService yandexSpeechService) {
-        return new ConversationHandler(yandexSpeechService);
+    public ConversationHandler getConversationHandler(YandexSpeechService yandexSpeechService, TelegramDelivery delivery) {
+        return new ConversationHandler(yandexSpeechService, delivery);
     }
 
     @Order(4)
     @Bean("currencyConvertHandler")
-    public CurrencyConvertHandler currencyConvertHandler(ExchangeRateClient exchangeRateClient) {
-        return new CurrencyConvertHandler(exchangeRateClient);
+    public CurrencyConvertHandler currencyConvertHandler(ExchangeRateClient exchangeRateClient, TelegramDelivery delivery) {
+        return new CurrencyConvertHandler(exchangeRateClient, delivery);
     }
 
     @Order(3)
     @Bean("gptConversationHandler")
-    public GptConversationHandler gptConversationHandler(ChatGptClient client, MashaProperties mashaProperties, ChatGptProperties chatGptProperties) {
+    public GptConversationHandler gptConversationHandler(ChatGptClient client, MashaProperties mashaProperties, ChatGptProperties chatGptProperties,
+                                                       @Qualifier("summaryExecutor") KeyedTaskExecutor summaries, TelegramDelivery delivery) {
         return new GptConversationHandler(
                 client,
                 mashaProperties.persona(),
                 chatGptProperties.memoryMessages(),
                 chatGptProperties.memoryTtlMinutes(),
                 chatGptProperties.summaryEveryUserMessages(),
-                chatGptProperties.profileDir()
+                chatGptProperties.profileDir(), summaries, delivery
         );
     }
 
     @Order(2)
     @Bean("videoAnalyzeHandler")
-    public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client) {
-        return new VideoAnalyzeHandler(client);
+    public VideoAnalyzeHandler videoAnalyzeHandler(VideoAnalyzerClient client, TelegramDelivery delivery) {
+        return new VideoAnalyzeHandler(client, delivery);
     }
 
     @Bean

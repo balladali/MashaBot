@@ -28,9 +28,11 @@ public class YandexSpeechService implements SpeechService {
         URLConnection connection;
         try {
             connection = new URL(url).openConnection();
+            connection.setConnectTimeout(10_000);
+            connection.setReadTimeout(30_000);
             return connection.getInputStream();
         } catch (IOException e) {
-            return null;
+            throw new IllegalStateException("Speech service request failed", e);
         }
     }
 }

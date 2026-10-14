@@ -58,7 +58,13 @@ public class ProfileSummaryService {
         String section = SUMMARY_MARKER + Instant.now() + "\n" + summary.strip() + "\n\n";
         writeAtomically(file, existing + section);
 
-        maybeResummarizeProfile(file);
+        // The new section is already persisted. A failed compaction must not replay the batch.
+        try {
+            maybeResummarizeProfile(file);
+        } catch (Exception e) {
+            org.slf4j.LoggerFactory.getLogger(ProfileSummaryService.class)
+                    .warn("event=profile_compaction_failed type={}", e.getClass().getSimpleName());
+        }
     }
 
     private void maybeResummarizeProfile(Path file) throws Exception {

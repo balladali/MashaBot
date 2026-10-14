@@ -1,281 +1,180 @@
 package ru.balladali.mashabot.core.handlers.message;
 
-import org.jetbrains.annotations.NotNull;
-import org.telegram.telegrambots.meta.api.methods.ActionType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
 import org.telegram.telegrambots.meta.api.methods.GetMe;
-import org.telegram.telegrambots.meta.api.methods.send.SendChatAction;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
-import org.telegram.telegrambots.meta.api.objects.User;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
-import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import ru.balladali.mashabot.core.clients.gpt.ChatGptClient;
+import ru.balladali.mashabot.core.services.KeyedTaskExecutor;
 import ru.balladali.mashabot.core.services.ProfileSummaryService;
+import ru.balladali.mashabot.telegram.TelegramDelivery;
 import ru.balladali.mashabot.telegram.TelegramMessage;
-
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 
 public class GptConversationHandler implements MessageHandler {
+    private static final Logger log = LoggerFactory.getLogger(GptConversationHandler.class);
+    private static final int TG_LIMIT = 4096;
+    private static final int LONG_MEMORY_PROMPT_LIMIT = 2500;
+    private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     private final ChatGptClient chat;
     private final String personaSystemPrompt;
     private final int memoryMessages;
     private final long memoryTtlMs;
     private final int summaryEveryUserMessages;
-    private final ProfileSummaryService profileSummaryService;
+    private final ProfileSummaryService profiles;
+    private final KeyedTaskExecutor summaries;
+    private final TelegramDelivery delivery;
+    private final Map<String, DialogState> dialogs = new ConcurrentHashMap<>();
+    private volatile Long botId;
 
-    private static final int TG_LIMIT = 4096;
-    private static final int LONG_MEMORY_PROMPT_LIMIT = 2500;
-    private static final Pattern TRIGGER = Pattern.compile("^(?:маша[\\s,:-]*)", Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
-    private static final Map<String, Deque<ChatGptClient.ChatMessage>> DIALOG_MEMORY = new ConcurrentHashMap<>();
-    private static final Map<String, Long> DIALOG_LAST_ACTIVITY = new ConcurrentHashMap<>();
-    private static final Map<String, Deque<ChatGptClient.ChatMessage>> SUMMARY_BUFFER = new ConcurrentHashMap<>();
-    private static final Map<String, Integer> USER_MESSAGES_SINCE_SUMMARY = new ConcurrentHashMap<>();
-    private static volatile Long BOT_ID = null;
+    private record Entry(long sequence, ChatGptClient.ChatMessage message) {}
+    private static final class DialogState {
+        final Deque<ChatGptClient.ChatMessage> history = new ArrayDeque<>();
+        final Deque<Entry> summary = new ArrayDeque<>();
+        long lastActivity;
+        long sequence;
+        int userMessages;
+        boolean summaryPending;
+    }
 
-    public GptConversationHandler(ChatGptClient chat,
-                                  String personaSystemPrompt,
-                                  int memoryMessages,
-                                  int memoryTtlMinutes,
-                                  int summaryEveryUserMessages,
-                                  String profileDir) {
+    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages,
+                                  int memoryTtlMinutes, int summaryEveryUserMessages, String profileDir,
+                                  KeyedTaskExecutor summaries, TelegramDelivery delivery) {
+        this(chat, personaSystemPrompt, memoryMessages, memoryTtlMinutes, summaryEveryUserMessages,
+                new ProfileSummaryService(chat, profileDir), summaries, delivery);
+    }
+
+    public GptConversationHandler(ChatGptClient chat, String personaSystemPrompt, int memoryMessages,
+                                  int memoryTtlMinutes, int summaryEveryUserMessages, ProfileSummaryService profiles,
+                                  KeyedTaskExecutor summaries, TelegramDelivery delivery) {
         this.chat = chat;
         this.personaSystemPrompt = personaSystemPrompt;
         this.memoryMessages = Math.max(1, memoryMessages);
         this.memoryTtlMs = Math.max(1, memoryTtlMinutes) * 60_000L;
         this.summaryEveryUserMessages = Math.max(1, summaryEveryUserMessages);
-        this.profileSummaryService = new ProfileSummaryService(chat, profileDir);
+        this.profiles = profiles;
+        this.summaries = summaries;
+        this.delivery = delivery;
     }
 
     @Override
-    public boolean needHandle(TelegramMessage message) {
-        if (message == null) return false;
-
-        String text = message.getText();
-        boolean hasTrigger = text != null && TRIGGER.matcher(text).find();
-        return hasTrigger || isReplyToMashaMessage(message);
-    }
-
-    private boolean isReplyToMashaMessage(TelegramMessage telegramMessage) {
-        Message message = telegramMessage.getMessage();
-        if (message == null || message.getReplyToMessage() == null || message.getReplyToMessage().getFrom() == null) {
-            return false;
-        }
-
-        Long mashaId = resolveBotId(telegramMessage);
-        if (mashaId == null) return false;
-
-        return Objects.equals(message.getReplyToMessage().getFrom().getId(), mashaId);
-    }
-
-    private Long resolveBotId(TelegramMessage telegramMessage) {
-        if (BOT_ID != null) return BOT_ID;
-        try {
-            User me = telegramMessage.getClient().execute(new GetMe());
-            if (me != null && me.getId() != null) {
-                BOT_ID = me.getId();
-                return BOT_ID;
+    public boolean needHandle(TelegramMessage entity) {
+        if (entity == null) return false;
+        String text = entity.getText();
+        if (text != null && TRIGGER.matcher(text).find()) return true;
+        Message message = entity.getMessage();
+        if (message == null || message.getReplyToMessage() == null || message.getReplyToMessage().getFrom() == null) return false;
+        if (botId == null) {
+            try { botId = entity.getClient().execute(new GetMe()).getId(); }
+            catch (Exception e) {
+                log.warn("event=bot_identity_failed type={}", e.getClass().getSimpleName());
+                return false;
             }
-        } catch (Exception ignored) {
         }
-        return null;
+        return Objects.equals(message.getReplyToMessage().getFrom().getId(), botId);
     }
 
     @Override
     public void handle(TelegramMessage entity) {
-        String text = Optional.ofNullable(entity.getText()).orElse("");
-
-        String userQuery = TRIGGER.matcher(text).replaceFirst("").trim();
-
-        String reply = "";
-        String caption = "";
-        if (entity.getMessage().getReplyToMessage() != null) {
-            reply = entity.getMessage().getReplyToMessage().getText();
-            caption = entity.getMessage().getReplyToMessage().getCaption();
-        }
-        if (userQuery.isEmpty() && (reply == null || reply.isBlank()) && (caption == null || caption.isBlank())) {
+        String query = TRIGGER.matcher(Optional.ofNullable(entity.getText()).orElse("")).replaceFirst("").trim();
+        Message replyMessage = entity.getMessage().getReplyToMessage();
+        String reply = replyMessage == null ? null : replyMessage.getText();
+        String caption = replyMessage == null ? null : replyMessage.getCaption();
+        if (query.isBlank() && (reply == null || reply.isBlank()) && (caption == null || caption.isBlank())) {
             sendAnswer(entity, "Привет! Я Маша 🦄 Чем могу помочь?");
             return;
         }
 
-        String memoryKey = buildMemoryKey(entity.getMessage());
-        List<ChatGptClient.ChatMessage> messages = getChatMessages(memoryKey, reply, caption, userQuery);
-        try {
-            sendTyping(entity);
-
-            String answer = chat.chat(messages, 0.8, 600);
-            sendAnswer(entity, answer);
-
-            appendMemory(memoryKey, "user", userQuery);
-            appendMemory(memoryKey, "assistant", answer);
-
-            appendSummaryBuffer(memoryKey, "user", userQuery);
-            appendSummaryBuffer(memoryKey, "assistant", answer);
-
-            if (needSummary(memoryKey)) {
-                summarizeAndPersist(memoryKey);
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-            sendAnswer(entity, "Ой, тут что-то пошло не так… Давай попробуем ещё раз чуток позже?");
-            throw new IllegalStateException("Failed to handle GPT conversation", e);
-        }
-    }
-
-    private String buildMemoryKey(Message message) {
-        if (message == null) return "unknown";
-        Long chatId = message.getChatId();
-        Long userId = message.getFrom() != null ? message.getFrom().getId() : null;
-        return String.valueOf(chatId) + ":" + String.valueOf(userId);
-    }
-
-    private Deque<ChatGptClient.ChatMessage> getActiveHistory(String key) {
-        long now = System.currentTimeMillis();
-        Long last = DIALOG_LAST_ACTIVITY.get(key);
-        if (last != null && now - last > memoryTtlMs) {
-            DIALOG_MEMORY.remove(key);
-            DIALOG_LAST_ACTIVITY.remove(key);
-            return new ArrayDeque<>();
-        }
-        return DIALOG_MEMORY.getOrDefault(key, new ArrayDeque<>());
-    }
-
-    private void appendMemory(String key, String role, String content) {
-        if (content == null || content.isBlank()) return;
-
-        Deque<ChatGptClient.ChatMessage> history = new ArrayDeque<>(getActiveHistory(key));
-        history.addLast(new ChatGptClient.ChatMessage(role, content));
-
-        while (history.size() > memoryMessages) {
-            history.removeFirst();
-        }
-
-        DIALOG_MEMORY.put(key, history);
-        DIALOG_LAST_ACTIVITY.put(key, System.currentTimeMillis());
-    }
-
-    private void appendSummaryBuffer(String key, String role, String content) {
-        if (content == null || content.isBlank()) return;
-
-        Deque<ChatGptClient.ChatMessage> buffer = new ArrayDeque<>(SUMMARY_BUFFER.getOrDefault(key, new ArrayDeque<>()));
-        buffer.addLast(new ChatGptClient.ChatMessage(role, content));
-
-        while (buffer.size() > 240) {
-            buffer.removeFirst();
-        }
-
-        SUMMARY_BUFFER.put(key, buffer);
-
-        if ("user".equals(role)) {
-            USER_MESSAGES_SINCE_SUMMARY.merge(key, 1, Integer::sum);
-        }
-    }
-
-    private boolean needSummary(String key) {
-        return USER_MESSAGES_SINCE_SUMMARY.getOrDefault(key, 0) >= summaryEveryUserMessages;
-    }
-
-    private void summarizeAndPersist(String key) {
-        Deque<ChatGptClient.ChatMessage> buffer = SUMMARY_BUFFER.getOrDefault(key, new ArrayDeque<>());
-        if (buffer.isEmpty()) return;
-
-        StringBuilder transcript = new StringBuilder();
-        for (ChatGptClient.ChatMessage m : buffer) {
-            transcript.append(m.role()).append(": ").append(m.content()).append("\n");
-        }
-
-        try {
-            String summary = profileSummaryService.generateDialogSummary(transcript.toString());
-            profileSummaryService.appendSummaryAndMaybeResummarize(key, summary);
-            USER_MESSAGES_SINCE_SUMMARY.put(key, 0);
-            SUMMARY_BUFFER.remove(key);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    @NotNull
-    private List<ChatGptClient.ChatMessage> getChatMessages(String memoryKey, String reply, String caption, String userQuery) {
+        String key = entity.getChatId() + ":" + (entity.getMessage().getFrom() == null ? "unknown" : entity.getMessage().getFrom().getId());
+        DialogState state = dialogs.computeIfAbsent(key, ignored -> new DialogState());
         List<ChatGptClient.ChatMessage> messages = new ArrayList<>();
         messages.add(new ChatGptClient.ChatMessage("system", personaSystemPrompt));
+        String longMemory = profiles.loadForPrompt(key, LONG_MEMORY_PROMPT_LIMIT);
+        if (!longMemory.isBlank()) messages.add(new ChatGptClient.ChatMessage("system", "Долговременная память о пользователе:\n" + longMemory));
+        synchronized (state) {
+            if (System.currentTimeMillis() - state.lastActivity > memoryTtlMs) state.history.clear();
+            messages.addAll(state.history);
+        }
+        String context = (reply == null ? "" : reply) + (caption == null ? "" : "\n" + caption);
+        if (!context.isBlank()) messages.add(new ChatGptClient.ChatMessage("system", "Контекст сообщения: «" + context + "»."));
+        messages.add(new ChatGptClient.ChatMessage("user", query));
+        String answer;
+        try {
+            answer = chat.chat(messages, 0.8, 600);
+            if (answer == null || answer.isBlank()) throw new IllegalStateException("Empty completion response");
+        } catch (Exception e) {
+            // Do not print upstream bodies, prompts or credentials from exception messages.
+            throw new IllegalStateException("Conversation request failed", e);
+        }
+        sendAnswer(entity, answer); // Delivery errors propagate; do not remember an undelivered answer.
+        synchronized (state) {
+            append(state, "user", query);
+            append(state, "assistant", answer);
+            state.lastActivity = System.currentTimeMillis();
+            state.userMessages++;
+            scheduleSummary(key, state);
+        }
+    }
 
-        String longMemory = profileSummaryService.loadForPrompt(memoryKey, LONG_MEMORY_PROMPT_LIMIT);
-        if (!longMemory.isBlank()) {
-            messages.add(new ChatGptClient.ChatMessage("system", "Долговременная память о пользователе:\n" + longMemory));
-        }
+    private void append(DialogState state, String role, String text) {
+        ChatGptClient.ChatMessage message = new ChatGptClient.ChatMessage(role, text);
+        state.history.addLast(message);
+        while (state.history.size() > memoryMessages) state.history.removeFirst();
+        state.summary.addLast(new Entry(++state.sequence, message));
+        while (state.summary.size() > Math.max(240L, 2L * summaryEveryUserMessages)) state.summary.removeFirst();
+    }
 
-        Deque<ChatGptClient.ChatMessage> history = getActiveHistory(memoryKey);
-        if (!history.isEmpty()) {
-            messages.addAll(history);
+    // Called under the dialog lock. Background completion only acknowledges its own snapshot.
+    private void scheduleSummary(String key, DialogState state) {
+        if (state.summaryPending || state.userMessages < summaryEveryUserMessages || state.summary.isEmpty()) return;
+        List<Entry> snapshot = List.copyOf(state.summary);
+        long through = snapshot.getLast().sequence();
+        int userCount = state.userMessages;
+        String requestId = MDC.get("requestId");
+        state.summaryPending = true;
+        boolean accepted = summaries.submit(key, () -> {
+            long start = System.nanoTime();
+            try (MDC.MDCCloseable ignored = MDC.putCloseable("requestId", requestId)) {
+                StringBuilder transcript = new StringBuilder();
+                for (Entry entry : snapshot) transcript.append(entry.message().role()).append(": ").append(entry.message().content()).append("\n");
+                String summary = profiles.generateDialogSummary(transcript.toString());
+                if (summary == null || summary.isBlank()) throw new IllegalStateException("Empty summary");
+                profiles.appendSummaryAndMaybeResummarize(key, summary);
+                synchronized (state) {
+                    state.summary.removeIf(entry -> entry.sequence() <= through);
+                    state.userMessages -= userCount;
+                }
+                log.info("event=summary_finished duration_ms={}", (System.nanoTime() - start) / 1_000_000);
+            } catch (Exception e) {
+                log.warn("event=summary_failed type={} duration_ms={}", e.getClass().getSimpleName(), (System.nanoTime() - start) / 1_000_000);
+            } finally {
+                synchronized (state) { state.summaryPending = false; }
+            }
+        });
+        if (!accepted) {
+            state.summaryPending = false;
+            log.warn("event=summary_deferred");
         }
-
-        String context = "";
-        if (reply != null && !reply.isBlank()) {
-            context += reply;
-        }
-        if (caption != null && !caption.isBlank()) {
-            context += "\n" + caption;
-        }
-        if (!context.isBlank()) {
-            messages.add(new ChatGptClient.ChatMessage("system", "Контекст сообщения, на которое пользователь ответил: «" + context + "»."));
-        }
-
-        messages.add(new ChatGptClient.ChatMessage("user", userQuery));
-        return messages;
     }
 
     @Override
-    public void sendAnswer(TelegramMessage messageEntity, String answer) {
-        String t = (answer == null) ? "" : answer.strip();
-        if (t.isEmpty()) {
-            return;
-        }
-
-        boolean firstPart = true;
-        Integer replyToMessageId = messageEntity.getMessage() != null ? messageEntity.getMessage().getMessageId() : null;
-
-        for (String part : splitForTelegram(t, TG_LIMIT)) {
-            SendMessage msg = new SendMessage(messageEntity.getChatId(), part);
-            if (firstPart && replyToMessageId != null) {
-                msg.setReplyToMessageId(replyToMessageId);
-            }
-            try {
-                messageEntity.getClient().execute(msg);
-                firstPart = false;
-            } catch (TelegramApiException e) {
-                e.printStackTrace();
-                break;
-            }
+    public void sendAnswer(TelegramMessage entity, String answer) {
+        if (answer == null || answer.isBlank()) throw new IllegalArgumentException("Empty answer");
+        String text = answer.strip();
+        boolean first = true;
+        for (int start = 0; start < text.length();) {
+            int end = Math.min(text.length(), start + TG_LIMIT);
+            if (end < text.length() && Character.isHighSurrogate(text.charAt(end - 1))) end--;
+            SendMessage message = new SendMessage(entity.getChatId(), text.substring(start, end));
+            if (first) message.setReplyToMessageId(entity.getMessage().getMessageId());
+            delivery.send(entity.getClient(), message);
+            first = false;
+            start = end;
         }
     }
 
-    private static List<String> splitForTelegram(String s, int limit) {
-        List<String> parts = new ArrayList<>();
-        StringBuilder buf = new StringBuilder();
-        for (String line : s.split("\n", -1)) {
-            if (buf.length() + line.length() + 1 > limit) {
-                if (!buf.isEmpty()) {
-                    parts.add(buf.toString());
-                    buf.setLength(0);
-                }
-                while (line.length() > limit) {
-                    parts.add(line.substring(0, limit));
-                    line = line.substring(limit);
-                }
-            }
-            if (!buf.isEmpty()) buf.append('\n');
-            buf.append(line);
-        }
-        if (!buf.isEmpty()) parts.add(buf.toString());
-        return parts;
-    }
-
-    private void sendTyping(TelegramMessage messageEntity) {
-        SendChatAction action = new SendChatAction(messageEntity.getChatId(), ActionType.TYPING.toString());
-        try {
-            messageEntity.getClient().execute(action);
-        } catch (TelegramApiException e) {
-            e.printStackTrace();
-        }
-    }
 }

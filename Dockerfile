@@ -11,7 +11,7 @@ RUN --mount=type=cache,target=/root/.m2 \
 # Теперь исходники
 COPY src ./src
 RUN --mount=type=cache,target=/root/.m2 \
-    mvn -B -ntp -DskipTests clean package
+    mvn -B -ntp clean verify
 
 # ---------- runtime stage ----------
 FROM eclipse-temurin:21-jre
