@@ -7,9 +7,23 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ChatGptClientTest {
+    @Test
+    void reasoningIsExplicitlyDisabledByDefaultInTheHttpRequest() throws Exception {
+        AtomicReference<String> payload = new AtomicReference<>();
+        withResponse(200, "{\"choices\":[{\"message\":{\"content\":\"hello\"}}]}", 0, payload::set, client -> {
+            request(client);
+            var json = new ObjectMapper().readTree(payload.get());
+            assertTrue(json.path("reasoning").path("enabled").isBoolean());
+            assertFalse(json.path("reasoning").path("enabled").booleanValue());
+        });
+    }
+
     @Test
     void emptyCompletionIsAnExplicitFailure() throws Exception {
         withResponse(200, "{\"choices\":[{\"message\":{\"content\":\" \"}}]}", 0, client ->
@@ -39,9 +53,13 @@ class ChatGptClientTest {
     }
 
     private void withResponse(int code, String body, long delay, Check check) throws Exception {
+        withResponse(code, body, delay, ignored -> {}, check);
+    }
+
+    private void withResponse(int code, String body, long delay, Consumer<String> capture, Check check) throws Exception {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         server.createContext("/v1/chat/completions", exchange -> {
-            exchange.getRequestBody().readAllBytes();
+            capture.accept(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             try { Thread.sleep(delay); }
             catch (InterruptedException e) { Thread.currentThread().interrupt(); }
             byte[] data = body.getBytes(StandardCharsets.UTF_8);

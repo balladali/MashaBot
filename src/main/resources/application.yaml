@@ -36,6 +36,7 @@ clients:
     base-url: ${CHATGPT_API_URL}       # Базовый URL ChatGPT API (или совместимого)
     api-key: ${OPENAI_API_KEY}         # Ключ
     model: ${CHATGPT_MODEL}            # Модель
+    reasoning-enabled: ${CHATGPT_REASONING_ENABLED:false}
     timeout-sec: ${CHATGPT_TIMEOUT_SEC:120}
     memory-messages: ${GPT_MEMORY_MESSAGES:20}
     memory-ttl-minutes: ${GPT_MEMORY_TTL_MINUTES:30}

@@ -7,6 +7,7 @@ public record ChatGptProperties(
         String baseUrl,
         String apiKey,
         String model,
+        boolean reasoningEnabled,
         int timeoutSec,
         int memoryMessages,
         int memoryTtlMinutes,

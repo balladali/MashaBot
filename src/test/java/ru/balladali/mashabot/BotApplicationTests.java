@@ -5,6 +5,9 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import ru.balladali.mashabot.core.config.ChatGptProperties;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 @SpringBootTest(properties = {
         "credential.telegram.token=test-only", "clients.chatgpt.base-url=http://127.0.0.1:1",
@@ -13,5 +16,8 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
 class BotApplicationTests {
     @MockitoBean TelegramBotsLongPollingApplication telegramApp;
     @MockitoBean TelegramClient telegramClient;
-    @Test void contextLoadsWithoutExternalServices() {}
+    @Autowired ChatGptProperties chatGptProperties;
+    @Test void contextLoadsWithoutExternalServices() {
+        assertFalse(chatGptProperties.reasoningEnabled());
+    }
 }

@@ -30,6 +30,7 @@ docker compose down
 - `TG_BOT_TOKEN` — токен Telegram бота
 - `OPENAI_API_KEY` — ключ для Java-бота (OpenRouter/OpenAI-совместимый)
 - `OPENROUTER_API_KEY` — ключ для `yt-video-analyzer`
+- `CHATGPT_REASONING_ENABLED` — включение reasoning для Java-бота, по умолчанию `false`. В запросах явно передаётся `reasoning.enabled=false`; для включения установите `true` и пересоздайте контейнер. Настройка применяется и к ответам, и к сводкам памяти через общий GPT-клиент. Отдельный `yt-video-analyzer` этой настройкой не управляется. Поддержка отключения зависит от модели и провайдера; для `deepseek/deepseek-v4.1-flash` проверена.
 - `VIDEO_ANALYZER_URL` — URL Python-сервиса для Java-бота (по умолчанию `http://yt-video-analyzer:8000/analyze`)
 
 ## Обработка запросов и диагностика

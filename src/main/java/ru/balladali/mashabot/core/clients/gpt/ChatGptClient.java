@@ -13,12 +13,15 @@ public class ChatGptClient {
 
     public record ChatMessage(String role, String content) {}
 
+    public record Reasoning(boolean enabled) {}
+
     public record ChatRequest(
             String model,
             List<ChatMessage> messages,
             Double temperature,
             Integer max_tokens,
-            Map<String, Object> response_format // можно null
+            Map<String, Object> response_format, // можно null
+            Reasoning reasoning
     ) {}
 
     public record Choice(int index, Message message) {
@@ -32,8 +35,14 @@ public class ChatGptClient {
     private final HttpUrl baseUrl;
     private final String apiKey;
     private final String model;
+    private final boolean reasoningEnabled;
 
     public ChatGptClient(OkHttpClient httpClient, String baseUrl, String apiKey, String model, Duration timeout) {
+        this(httpClient, baseUrl, apiKey, model, timeout, false);
+    }
+
+    public ChatGptClient(OkHttpClient httpClient, String baseUrl, String apiKey, String model, Duration timeout,
+                         boolean reasoningEnabled) {
         this.http = httpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(15))
                 .readTimeout(timeout)
@@ -43,6 +52,7 @@ public class ChatGptClient {
                 .build();
         this.apiKey = apiKey;
         this.model = model;
+        this.reasoningEnabled = reasoningEnabled;
         this.om = new ObjectMapper()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
                 .setSerializationInclusion(JsonInclude.Include.NON_NULL);
@@ -53,7 +63,7 @@ public class ChatGptClient {
 
     public String chat(List<ChatMessage> messages, Double temperature, Integer maxTokens) throws Exception {
         long started = System.nanoTime();
-        ChatRequest payload = new ChatRequest(model, messages, temperature, maxTokens, null);
+        ChatRequest payload = new ChatRequest(model, messages, temperature, maxTokens, null, new Reasoning(reasoningEnabled));
         String json = om.writeValueAsString(payload);
 
         Request req = new Request.Builder()

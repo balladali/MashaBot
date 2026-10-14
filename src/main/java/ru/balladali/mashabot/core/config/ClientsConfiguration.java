@@ -19,7 +19,8 @@ public class ClientsConfiguration {
                 props.baseUrl(),
                 props.apiKey(),
                 props.model(),
-                Duration.ofSeconds(props.timeoutSec())
+                Duration.ofSeconds(props.timeoutSec()),
+                props.reasoningEnabled()
         );
     }
 
