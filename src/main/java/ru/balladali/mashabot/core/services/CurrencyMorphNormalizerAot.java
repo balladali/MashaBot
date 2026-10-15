@@ -125,6 +125,11 @@ public class CurrencyMorphNormalizerAot {
         lemmaToIso.put("тенге",  "KZT");
         lemmaToIso.put("злотый", "PLN");
         lemmaToIso.put("лари",   "GEL");
+        lemmaToIso.put("гривна", "UAH");
+        lemmaToIso.put("драм",   "AMD");
+        lemmaToIso.put("сом",    "KGS");
+        lemmaToIso.put("сомони", "TJS");
+        lemmaToIso.put("сум",    "UZS");
         lemmaToIso.put("рубль",  "RUB");
         // жаргон
         lemmaToIso.put("бакс",   "USD");

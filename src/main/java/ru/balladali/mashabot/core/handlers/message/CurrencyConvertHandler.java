@@ -38,17 +38,17 @@ public class CurrencyConvertHandler implements MessageHandler {
     /* ================== Регэксп + пост-фильтр ================== */
 
     // число: 1 234,56 | 1,234.56 | 1234.56 | 1234
-    private static final String AMOUNT = "(?:\\d{1,3}(?:[\\s\\u00A0.]\\d{3})*(?:[.,]\\d+)?|\\d+(?:[.,]\\d+)?)";
+    private static final String AMOUNT = "(?:\\d{1,3}(?:[\\s\\u00A0.,]\\d{3})+(?:[.,]\\d+)?|\\d+(?:[.,]\\d+)?)";
     // множитель через пробел: к/кк/тыс/млн/млрд/миллион/миллиард
-    private static final String MULT = "(?:кк|к|тыс\\.?|тысяч[аи]?|млн\\.?|миллион(?:а|ов)?|млрд\\.?|миллиард(?:а|ов)?)";
+    private static final String MULT = "(?:кк|к|тыс\\.?|тысяч[аи]?|млн\\.?|миллион(?:а|ов)?|млрд\\.?|миллиард(?:а|ов)?)(?![\\p{L}\\p{N}_])";
     // множитель суффиксом без пробела: к/кк/k/kk/млн/млрд
     private static final String MULT_SUFFIX = "(?:кк|kk|к|k|млн|млрд)";
 
     // FIX: Валютное слово (финальное) RU/EN — якорим конец фразы валюты на реальное название валюты
     private static final String CUR_WORD_RU =
-            "(?:доллар(?:[а-я]+)?|евро|фунт(?:[а-я]+)?|франк(?:[а-я]+)?|й?ен(?:а|ы|е|у|ой|ами|ах)?|юан(?:ь|я|ю|ем|ей|ями|ях)?|"
+            "(?:доллар(?:[а-я]+)?|евро|фунт(?:[а-я]+)?|франк(?:[а-я]+)?|[ий]?ен(?:а|ы|е|у|ой|ами|ах)?|юан(?:ь|я|ю|ем|ей|ями|ях)?|"
                     + "злот(?:ый|ых|ые|ого|ому|ым|ыми)?|лари|тенге|крон(?:а|ы|е|у|ой|ами|ах)?|манат(?:[а-я]+)?|"
-                    + "ле[йюя]|леев|рубл(?:ь|я|ей|ю|ем|ями|ях)?|сомони|сом(?:[а-я]+)?|драм(?:[а-я]+)?|гривн(?:а|ы|е|у|ой|ами|ах)?|сум(?:[а-я]+)?)";
+                    + "ле[йюя]|леев|рубл(?:ь|я|ей|ю|ем|ями|ях)?|сомони|сом(?:[а-я]+)?|драм(?:[а-я]+)?|гривен|гривн(?:а|ы|е|у|ой|ами|ах)?|сум(?:[а-я]+)?|лир(?:а|ы|е|у|ой|ами|ах)?)";
 
     private static final String CUR_WORD_EN =
             "(?:dollars?|euros?|pounds?|francs?|yen|yuan|zloty|zloties|lari|tenge|krona|kronor|kroner|manat|lei|rubles?)";
@@ -58,15 +58,18 @@ public class CurrencyConvertHandler implements MessageHandler {
             "(?:[A-Za-z]{3}|[$€£¥₸₺₴₽]|(?:[\\p{L}\\-]+\\s+){0,3}(?:" + CUR_WORD_RU + "|" + CUR_WORD_EN + "))";
 
     private static final Pattern P = Pattern.compile(
-            "(?i)(?:" +
+            "(?iu)(?<![\\p{L}\\p{N}_@])(?<!\\p{N}[.,])(?:(?:" +
                     // валюта → число (без посторонних слов между ними)
                     "(?<cur1>" + CUR + ")\\s*~?\\s*(?<amount1>" + AMOUNT + ")(?<mult1suf>" + MULT_SUFFIX + ")?(?:\\s+(?<mult1>" + MULT + "))?" +
                     ")|" +
                     // число → валюта
                     "(?:" +
                     "(?<amount2>" + AMOUNT + ")(?<mult2suf>" + MULT_SUFFIX + ")?(?:\\s+(?<mult2>" + MULT + "))?\\s*~?\\s*(?<cur2>" + CUR + ")" +
-                    ")"
+                    "))(?![\\p{L}\\p{N}_])"
     );
+
+    private static final Pattern NON_MONEY = Pattern.compile(
+            "(?i)(?:https?://|www\\.)\\S+|(?<![\\p{L}\\p{N}_])@[\\p{L}\\p{N}_]+");
 
     // Слова в разрыве между числом и валютой, из-за которых матч отклоняем (время/прочие единицы)
     private static final Set<String> GAP_STOPWORDS = Set.of(
@@ -108,10 +111,11 @@ public class CurrencyConvertHandler implements MessageHandler {
         TOKEN_TO_ISO.put("₴","UAH"); TOKEN_TO_ISO.put("₽","RUB"); // RUB потом отфильтруем
 
         // русский/жаргон/EN
-        map("доллар","USD","бакс","баксы","зелень","usd","usdt");
-        map("евро","EUR","eur");
+        map("доллар","USD","бакс","баксы","зелень","usd","usdt","dollar","dollars");
+        map("евро","EUR","eur","euro","euros");
         map("фунт","GBP","стерлингов","gbp","pound","pounds");
-        map("франк","CHF","chf");
+        map("франк","CHF","chf","franc","francs");
+        map("лира","TRY","try");
         map("иена","JPY","йена","jpy","yen");
         map("юань","CNY","cny","yuan");
         map("злотый","PLN","pln","zloty","zloties");
@@ -121,10 +125,10 @@ public class CurrencyConvertHandler implements MessageHandler {
         // ex-USSR:
         map("белруб","BYN","br","byn","бел.руб");
         map("гривна","UAH","гривен","гривны","uah","hryvnia","hryvnias");
-        map("драм","AMD","amd","dram","drams");
-        map("сом","KGS","kgs","som","soms");          // киргизский
+        map("драм","AMD","amd","dram","drams","драма","драмов","драму","драмом","драмами","драмах");
+        map("сом","KGS","kgs","som","soms","сома","сомов","сому","сомом","сомами","сомах"); // киргизский
         map("сомони","TJS","tjs","somoni");           // таджикский
-        map("сум","UZS","uzs","sum","soums");         // узбекский
+        map("сум","UZS","uzs","sum","soums","сума","сумов","суму","сумом","сумами","сумах"); // узбекский
 
         // рубль — специальный случай (RUB отфильтруем, BYN дадим через эвристику)
         map("рубль","RUB","руб","рублей","рубля","ruble","rub");
@@ -152,12 +156,25 @@ public class CurrencyConvertHandler implements MessageHandler {
         String amb = resolveAmbiguousByAdjOrCountry(t);
         if (amb != null) return amb;
 
+        // Country adjectives may precede an unambiguous currency word.
+        String lastWord = t.substring(t.lastIndexOf(' ') + 1);
+        String lastIso = TOKEN_TO_ISO.get(lastWord);
+        if (lastIso != null) return lastIso;
+
         // морфология RU (долларов, белорусских рублей, шведская крона...)
         String ruIso = ruMorph.toIso(t);
         if (ruIso != null) return ruIso;
 
         // ISO-3
-        if (t.matches("^[a-z]{3}$")) return t.toUpperCase(Locale.ROOT);
+        if (t.matches("^[a-z]{3}$")) {
+            String iso = t.toUpperCase(Locale.ROOT);
+            if (iso.equals("XXX") || iso.equals("XTS")) return null;
+            try {
+                return Currency.getInstance(iso).getCurrencyCode();
+            } catch (IllegalArgumentException ignored) {
+                return null;
+            }
+        }
 
         // англ. множественное
         if (t.matches("^[a-z]+s$")) {
@@ -169,6 +186,10 @@ public class CurrencyConvertHandler implements MessageHandler {
     }
 
     private static String resolveAmbiguousByAdjOrCountry(String t) {
+        if (t.contains("доллар") || t.contains("dollar")) {
+            if (t.contains("канад") || t.contains("canadian")) return "CAD";
+            if (t.contains("австрал") || t.contains("australian")) return "AUD";
+        }
         // крона
         if (t.contains("крон")) {
             String iso = resolveKronaPhrase(t);
@@ -222,13 +243,7 @@ public class CurrencyConvertHandler implements MessageHandler {
         List<String> candidates = collectCandidateTexts(message);
         for (String candidate: candidates) {
             if (candidate == null || candidate.isBlank()) continue;
-            Matcher m = P.matcher(candidate);
-            while (m.find()) {
-                String curToken = firstNonNull(m.group("cur1"), m.group("cur2"));
-                if (curToken == null) continue;
-                String iso = normalizeCurrency(curToken);
-                if (iso != null && !isRub(iso)) return true;
-            }
+            if (!extractMentions(candidate).isEmpty()) return true;
         }
         return false;
     }
@@ -272,6 +287,8 @@ public class CurrencyConvertHandler implements MessageHandler {
     }
 
     private List<FoundMoney> extractMentions(String text) {
+        // Remove link/username contents before matching, while keeping surrounding money amounts.
+        text = NON_MONEY.matcher(text).replaceAll(" ");
         Matcher m = P.matcher(text);
         List<FoundMoney> out = new ArrayList<>();
         while (m.find()) {
@@ -311,7 +328,16 @@ public class CurrencyConvertHandler implements MessageHandler {
 
     private static BigDecimal parseAmount(String s) {
         if (s == null) return null;
-        String norm = s.replace("\u00A0", " ").replace(" ", "").replace(",", ".");
+        String norm = s.replaceAll("[\\s\\u00A0]", "");
+        int comma = norm.lastIndexOf(','), dot = norm.lastIndexOf('.');
+        if (comma >= 0 && dot >= 0) {
+            // With both separators, the last one marks decimals; the other groups thousands.
+            char grouping = comma > dot ? '.' : ',';
+            norm = norm.replace(String.valueOf(grouping), "");
+        } else if (norm.matches("\\d{1,3}(?:[.,]\\d{3}){2,}")) {
+            norm = norm.replace(",", "").replace(".", "");
+        }
+        norm = norm.replace(',', '.');
         try { return new BigDecimal(norm); } catch (NumberFormatException e) { return null; }
     }
 
