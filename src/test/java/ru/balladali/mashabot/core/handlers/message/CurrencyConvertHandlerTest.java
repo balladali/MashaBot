@@ -38,6 +38,42 @@ class CurrencyConvertHandlerTest {
         assertConversion(text, iso, amount);
     }
 
+    static Stream<Arguments> declinedCurrencyNames() {
+        return Stream.of(
+                new String[]{"USD", "доллар доллара доллару долларом долларе доллары долларов долларам долларами долларах"},
+                new String[]{"GBP", "фунт фунта фунту фунтом фунте фунты фунтов фунтам фунтами фунтах"},
+                new String[]{"CHF", "франк франка франку франком франке франки франков франкам франками франках"},
+                new String[]{"JPY", "иена иены иене иену иеной иеною иен иенам иенами иенах йена йен йенами"},
+                new String[]{"CNY", "юань юаня юаню юанем юане юани юаней юаням юанями юанях"},
+                new String[]{"PLN", "злотый злотого злотому злотым злотом злотые злотых злотыми"},
+                new String[]{"TRY", "лира лиры лире лиру лирой лирою лир лирам лирами лирах"},
+                new String[]{"UAH", "гривна гривны гривне гривну гривной гривною гривен гривнам гривнами гривнах"},
+                new String[]{"BYN", "белорусских_рублей белорусскими_рублями"},
+                new String[]{"CAD", "канадских_долларов канадскими_долларами"},
+                new String[]{"AUD", "австралийских_долларов"},
+                new String[]{"NOK", "норвежская_крона норвежских_крон норвежскими_кронами"},
+                new String[]{"SEK", "шведских_крон"}, new String[]{"DKK", "датских_крон"},
+                new String[]{"CZK", "чешских_крон"}, new String[]{"ISK", "исландских_крон"},
+                new String[]{"AZN", "азербайджанского_маната азербайджанскими_манатами"},
+                new String[]{"TMT", "туркменских_манатов"},
+                new String[]{"MDL", "молдавских_леев молдавскими_леями"},
+                new String[]{"RON", "румынских_леев"},
+                new String[]{"AMD", "драм драма драму драмом драме драмы драмов драмам драмами драмах"},
+                new String[]{"KGS", "сом сома сому сомом соме сомы сомов сомам сомами сомах"},
+                new String[]{"UZS", "сум сума суму сумом суме сумы сумов сумам сумами сумах"}
+        ).flatMap(row -> Stream.of(row[1].split(" ")).flatMap(word -> {
+            String name = word.replace('_', ' ');
+            return Stream.of(Arguments.of("100 " + name, row[0], "100"),
+                    Arguments.of(name + " 100", row[0], "100"));
+        }));
+    }
+
+    @ParameterizedTest
+    @MethodSource("declinedCurrencyNames")
+    void preservesDeclensionsWithoutFullMorphologyDictionary(String text, String iso, String amount) throws Exception {
+        assertConversion(text, iso, amount);
+    }
+
     @ParameterizedTest
     @CsvSource(delimiter = '|', value = {
             "100 евро|EUR|100", "100 фунтов|GBP|100", "100 франков|CHF|100",
@@ -89,7 +125,8 @@ class CurrencyConvertHandlerTest {
     @ValueSource(strings = {
             "https://www.instagram.com/reel/DefKAlqRK7Y/?xtok=MXlwczVrZjhhMDcz",
             "@st4sik", "@usd100", "https://example.com/100USD", "www.example.com/USD100",
-            "100 ABC", "ABC 100", "100 XXX", "abc100USD", "100USDTsuffix", "100 рублей"
+            "100 ABC", "ABC 100", "100 XXX", "abc100USD", "100USDTsuffix", "100 рублей",
+            "100 крон", "100 манатов", "100 леев", "100 долларовый", "100 франкштейн", "100 сомнение"
     })
     void ignoresLinksUsernamesAndNonCurrencyTokensInTextAndCaptions(String text) {
         for (TelegramMessage message : new TelegramMessage[]{entity(text, null), entity(null, text)}) {

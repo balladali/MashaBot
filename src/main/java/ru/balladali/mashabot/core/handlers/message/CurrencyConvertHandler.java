@@ -2,7 +2,7 @@ package ru.balladali.mashabot.core.handlers.message;
 
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import ru.balladali.mashabot.core.clients.exchange.ExchangeRateClient;
-import ru.balladali.mashabot.core.services.CurrencyMorphNormalizerAot;
+import ru.balladali.mashabot.core.services.CurrencyNameNormalizer;
 import ru.balladali.mashabot.telegram.TelegramMessage;
 import ru.balladali.mashabot.telegram.TelegramDelivery;
 
@@ -25,13 +25,11 @@ import java.util.regex.Pattern;
 public class CurrencyConvertHandler implements MessageHandler {
 
     private final ExchangeRateClient rateClient;
-    private final CurrencyMorphNormalizerAot ruMorph;
     private final TelegramDelivery delivery;
 
     public CurrencyConvertHandler(ExchangeRateClient rateClient, TelegramDelivery delivery) {
         this.rateClient = rateClient;
         this.delivery = delivery;
-        this.ruMorph = CurrencyMorphNormalizerAot.defaultRu();
         initTokenMap();
     }
 
@@ -45,10 +43,7 @@ public class CurrencyConvertHandler implements MessageHandler {
     private static final String MULT_SUFFIX = "(?:кк|kk|к|k|млн|млрд)";
 
     // FIX: Валютное слово (финальное) RU/EN — якорим конец фразы валюты на реальное название валюты
-    private static final String CUR_WORD_RU =
-            "(?:доллар(?:[а-я]+)?|евро|фунт(?:[а-я]+)?|франк(?:[а-я]+)?|[ий]?ен(?:а|ы|е|у|ой|ами|ах)?|юан(?:ь|я|ю|ем|ей|ями|ях)?|"
-                    + "злот(?:ый|ых|ые|ого|ому|ым|ыми)?|лари|тенге|крон(?:а|ы|е|у|ой|ами|ах)?|манат(?:[а-я]+)?|"
-                    + "ле[йюя]|леев|рубл(?:ь|я|ей|ю|ем|ями|ях)?|сомони|сом(?:[а-я]+)?|драм(?:[а-я]+)?|гривен|гривн(?:а|ы|е|у|ой|ами|ах)?|сум(?:[а-я]+)?|лир(?:а|ы|е|у|ой|ами|ах)?)";
+    private static final String CUR_WORD_RU = CurrencyNameNormalizer.currencyPattern();
 
     private static final String CUR_WORD_EN =
             "(?:dollars?|euros?|pounds?|francs?|yen|yuan|zloty|zloties|lari|tenge|krona|kronor|kroner|manat|lei|rubles?)";
@@ -162,7 +157,7 @@ public class CurrencyConvertHandler implements MessageHandler {
         if (lastIso != null) return lastIso;
 
         // морфология RU (долларов, белорусских рублей, шведская крона...)
-        String ruIso = ruMorph.toIso(t);
+        String ruIso = CurrencyNameNormalizer.toIso(t);
         if (ruIso != null) return ruIso;
 
         // ISO-3
