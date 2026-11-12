@@ -65,7 +65,6 @@ public class HandlerConfig {
         messageHandlersList.add(messageHandlers.get("calculatorHandler"));
         messageHandlersList.add(messageHandlers.get("videoAnalyzeHandler"));
         messageHandlersList.add(messageHandlers.get("gptConversationHandler"));
-        messageHandlersList.add(messageHandlers.get("conversationHandler"));
         messageHandlersList.add(messageHandlers.get("currencyConvertHandler"));
         return messageHandlersList;
     }
