@@ -21,6 +21,11 @@ import java.util.Map;
 @EnableConfigurationProperties(MashaProperties.class)
 public class HandlerConfig {
 
+    @Bean("calculatorHandler")
+    public CalculatorHandler calculatorHandler(TelegramDelivery delivery) {
+        return new CalculatorHandler(delivery);
+    }
+
     @Bean(name = "conversationHandler")
     @Order(Integer.MAX_VALUE)
     public ConversationHandler getConversationHandler(YandexSpeechService yandexSpeechService, TelegramDelivery delivery) {
@@ -57,6 +62,7 @@ public class HandlerConfig {
     @Bean
     public List<MessageHandler> messageHandlers(Map<String, MessageHandler> messageHandlers) {
         List<MessageHandler> messageHandlersList = new ArrayList<>();
+        messageHandlersList.add(messageHandlers.get("calculatorHandler"));
         messageHandlersList.add(messageHandlers.get("videoAnalyzeHandler"));
         messageHandlersList.add(messageHandlers.get("gptConversationHandler"));
         messageHandlersList.add(messageHandlers.get("conversationHandler"));
