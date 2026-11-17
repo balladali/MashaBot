@@ -11,7 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 @SpringBootTest(properties = {
-        "credential.telegram.token=test-only", "clients.chatgpt.base-url=http://127.0.0.1:1",
+        "memory.enabled=false", "credential.telegram.token=test-only", "clients.chatgpt.base-url=http://127.0.0.1:1",
         "clients.chatgpt.api-key=test-only", "clients.chatgpt.model=test-model", "ping-job.enabled=false"
 })
 class BotApplicationTests {

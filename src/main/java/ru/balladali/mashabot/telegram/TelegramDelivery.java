@@ -17,11 +17,14 @@ public class TelegramDelivery {
     public TelegramDelivery() { this(Thread::sleep); }
     TelegramDelivery(Sleeper sleeper) { this.sleeper = sleeper; }
 
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private ru.balladali.mashabot.memory.ChatMemoryService memory;
     public void send(TelegramClient client, SendMessage message) {
         long start = System.nanoTime();
         for (int attempt = 1; attempt <= 3; attempt++) {
             try {
-                client.execute(message);
+                var sent = client.execute(message);
+                if(memory!=null)memory.save(sent,true);
                 log.info("event=telegram_send status=ok attempt={} duration_ms={}", attempt,
                         (System.nanoTime() - start) / 1_000_000);
                 return;

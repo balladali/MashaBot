@@ -1,6 +1,20 @@
 version: "3.9"
 
 services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: masha
+      POSTGRES_USER: masha
+      POSTGRES_PASSWORD: ${MEMORY_DB_PASSWORD:?Set MEMORY_DB_PASSWORD}
+    volumes:
+      - chat-memory-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U masha -d masha"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
   yt-video-analyzer:
     build:
       context: https://github.com/balladali/yt-video-analyzer.git#main
@@ -32,10 +46,19 @@ services:
     container_name: masha-bot
     restart: unless-stopped
     depends_on:
-      - yt-video-analyzer
+      yt-video-analyzer:
+        condition: service_started
+      postgres:
+        condition: service_healthy
     ports:
       - "2468:8080"
     environment:
+      MEMORY_ENABLED: ${MEMORY_ENABLED:-true}
+      MEMORY_DB_URL: jdbc:postgresql://postgres:5432/masha
+      MEMORY_DB_USER: masha
+      MEMORY_DB_PASSWORD: ${MEMORY_DB_PASSWORD:?Set MEMORY_DB_PASSWORD}
+      MEMORY_CAPTURE_ENABLED: ${MEMORY_CAPTURE_ENABLED:-true}
+      MEMORY_DEFAULT_CHAT_ENABLED: ${MEMORY_DEFAULT_CHAT_ENABLED:-false}
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}
       TG_BOT_NAME: ${TG_BOT_NAME:-MaschaBot}
       ERROR_CHAT_ID: ${ERROR_CHAT_ID:-}
@@ -55,3 +78,6 @@ services:
       VIDEO_ANALYZER_URL: ${VIDEO_ANALYZER_URL:-http://yt-video-analyzer:8000/analyze}
     volumes:
       - ${HOST_MASHA_MEMORY_DIR:-/opt/masha/memory}:/opt/masha/memory
+
+volumes:
+  chat-memory-data:

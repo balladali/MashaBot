@@ -40,11 +40,18 @@ public class Bot implements LongPollingUpdateConsumer {
         this.typing = typing;
     }
 
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private ru.balladali.mashabot.memory.ChatMemoryService memory;
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private ru.balladali.mashabot.memory.MemoryCommands memoryCommands;
+
     @Override
     public void consume(List<Update> updates) {
         for (Update update : updates) {
-            Message message = update.getMessage();
+            Message message = update.getMessage()!=null?update.getMessage():update.getEditedMessage()!=null?update.getEditedMessage():update.getChannelPost()!=null?update.getChannelPost():update.getEditedChannelPost();
             if (message == null) continue;
+            if (memory != null) memory.save(message, false);
+            if (update.getMessage() == null) continue;
             long received = System.nanoTime();
             String requestId = String.valueOf(update.getUpdateId());
             String chat = String.valueOf(message.getChatId());
@@ -63,6 +70,7 @@ public class Bot implements LongPollingUpdateConsumer {
         try (MDC.MDCCloseable ignored = MDC.putCloseable("requestId", requestId)) {
             long start = System.nanoTime();
             log.info("event=message_started request={} queue_ms={}", requestId, (start - received) / 1_000_000);
+            if(memoryCommands!=null && memoryCommands.handle(message,client))return;
             TelegramMessage entity = new TelegramMessage(message, client);
             try {
                 for (MessageHandler handler : handlers) {

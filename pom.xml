@@ -38,6 +38,11 @@
 	</repositories>
 
 	<dependencies>
+        <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId></dependency>
+        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId></dependency>
+        <dependency><groupId>org.flywaydb</groupId><artifactId>flyway-database-postgresql</artifactId></dependency>
+        <dependency><groupId>org.testcontainers</groupId><artifactId>postgresql</artifactId><version>1.21.4</version><scope>test</scope></dependency>
+        <dependency><groupId>org.testcontainers</groupId><artifactId>junit-jupiter</artifactId><version>1.21.4</version><scope>test</scope></dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter</artifactId>
@@ -84,7 +89,7 @@
 			<optional>true</optional>
 		</dependency>
 
-		<!-- Google YouTube API: сильно обновить до актуальной 2.0.0-ветки -->
+		<!-- Google YouTube API: СЃРёР»СЊРЅРѕ РѕР±РЅРѕРІРёС‚СЊ РґРѕ Р°РєС‚СѓР°Р»СЊРЅРѕР№ 2.0.0-РІРµС‚РєРё -->
 		<dependency>
 			<groupId>com.google.apis</groupId>
 			<artifactId>google-api-services-youtube</artifactId>

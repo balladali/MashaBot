@@ -54,3 +54,17 @@ masha:
     Будь полезной, конкретной и не уходи в токсичность. 
     Избегай ненормативной лексики и оскорблений.
     Отвечай по-русски, коротко и по делу, если не просят иначе.
+
+memory:
+  enabled: ${MEMORY_ENABLED:true}
+  url: ${MEMORY_DB_URL:jdbc:postgresql://localhost:5432/masha}
+  username: ${MEMORY_DB_USER:masha}
+  password: ${MEMORY_DB_PASSWORD:}
+  capture:
+    enabled: ${MEMORY_CAPTURE_ENABLED:true}
+    default-chat-enabled: ${MEMORY_DEFAULT_CHAT_ENABLED:false}
+  context:
+    recent-limit: 30
+    reply-depth: 5
+    max-messages: 80
+    max-characters: 30000

@@ -30,6 +30,8 @@ public class GptConversationHandler implements MessageHandler {
     private final KeyedTaskExecutor summaries;
     private final TelegramDelivery delivery;
     private final Map<String, DialogState> dialogs = new ConcurrentHashMap<>();
+    @org.springframework.beans.factory.annotation.Autowired(required=false)
+    private ru.balladali.mashabot.memory.ChatContextBuilder persistentContext;
     private volatile Long botId;
 
     private record Entry(long sequence, ChatGptClient.ChatMessage message) {}
@@ -96,15 +98,19 @@ public class GptConversationHandler implements MessageHandler {
         DialogState state = dialogs.computeIfAbsent(key, ignored -> new DialogState());
         List<ChatGptClient.ChatMessage> messages = new ArrayList<>();
         messages.add(new ChatGptClient.ChatMessage("system", personaSystemPrompt));
-        String longMemory = profiles.loadForPrompt(key, LONG_MEMORY_PROMPT_LIMIT);
-        if (!longMemory.isBlank()) messages.add(new ChatGptClient.ChatMessage("system", "Долговременная память о пользователе:\n" + longMemory));
-        synchronized (state) {
-            if (System.currentTimeMillis() - state.lastActivity > memoryTtlMs) state.history.clear();
-            messages.addAll(state.history);
+        boolean persistent = persistentContext != null && persistentContext.enabled();
+        if (persistent) messages.addAll(persistentContext.build(entity.getMessage()));
+        else {
+            String longMemory = profiles.loadForPrompt(key, LONG_MEMORY_PROMPT_LIMIT);
+            if (!longMemory.isBlank()) messages.add(new ChatGptClient.ChatMessage("system", "Долговременная память о пользователе:\n" + longMemory));
+            synchronized (state) {
+                if (System.currentTimeMillis() - state.lastActivity > memoryTtlMs) state.history.clear();
+                messages.addAll(state.history);
+            }
+            String context = (reply == null ? "" : reply) + (caption == null ? "" : "\n" + caption);
+            if (!context.isBlank()) messages.add(new ChatGptClient.ChatMessage("user", "Контекст сообщения: «" + context + "»."));
+            messages.add(new ChatGptClient.ChatMessage("user", query));
         }
-        String context = (reply == null ? "" : reply) + (caption == null ? "" : "\n" + caption);
-        if (!context.isBlank()) messages.add(new ChatGptClient.ChatMessage("system", "Контекст сообщения: «" + context + "»."));
-        messages.add(new ChatGptClient.ChatMessage("user", query));
         String answer;
         try {
             answer = chat.chat(messages, 0.8, maxTokens);
@@ -114,7 +120,7 @@ public class GptConversationHandler implements MessageHandler {
             throw new IllegalStateException("Conversation request failed", e);
         }
         sendAnswer(entity, answer); // Delivery errors propagate; do not remember an undelivered answer.
-        synchronized (state) {
+        if (!persistent) synchronized (state) {
             append(state, "user", query);
             append(state, "assistant", answer);
             state.lastActivity = System.currentTimeMillis();
@@ -173,6 +179,7 @@ public class GptConversationHandler implements MessageHandler {
             int end = Math.min(text.length(), start + TG_LIMIT);
             if (end < text.length() && Character.isHighSurrogate(text.charAt(end - 1))) end--;
             SendMessage message = new SendMessage(entity.getChatId(), text.substring(start, end));
+            message.setMessageThreadId(entity.getMessage().getMessageThreadId());
             if (first) message.setReplyToMessageId(entity.getMessage().getMessageId());
             delivery.send(entity.getClient(), message);
             first = false;
