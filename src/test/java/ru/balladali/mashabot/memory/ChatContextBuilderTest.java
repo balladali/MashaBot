@@ -30,6 +30,7 @@ class ChatContextBuilderTest {
     Message current() {
         Message m = mock(Message.class);
         when(m.getChatId()).thenReturn(1L);
+        when(m.getMessageThreadId()).thenReturn(null);
         when(m.getMessageId()).thenReturn(3);
         when(m.getDate()).thenReturn(3);
         when(m.hasText()).thenReturn(true);
