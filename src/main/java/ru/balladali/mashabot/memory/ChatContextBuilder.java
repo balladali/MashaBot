@@ -90,7 +90,9 @@ public class ChatContextBuilder {
                         x ->
                                 new ChatGptClient.ChatMessage(
                                         x.direction().equals("OUTGOING") ? "assistant" : "user",
-                                        x.formatted()))
+                                        x.direction().equals("OUTGOING")
+                                                ? MemoryResponseFormat.answerText(x.text() == null ? "[" + x.type() + "]" : x.text())
+                                                : x.formatted()))
                 .toList();
     }
 }

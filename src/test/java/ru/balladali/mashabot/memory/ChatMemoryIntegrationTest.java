@@ -166,8 +166,8 @@ class ChatMemoryIntegrationTest {
                     .chat(
                             org.mockito.ArgumentMatchers.argThat(
                                     messages ->
-                                            messages.size() == 4
-                                                    && messages.get(1).content().contains("Казань")
+                                            messages.size() == 5
+                                                    && messages.get(2).content().contains("Казань")
                                                     && messages.get(2)
                                                             .content()
                                                             .contains("Во сколько")),

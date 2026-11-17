@@ -72,4 +72,16 @@ class ChatContextBuilderTest {
         p.getContext().setReplyDepth(-1);
         assertThrows(IllegalArgumentException.class, p::validate);
     }
+
+    @Test
+    void assistantHistoryContainsOnlyAnswerText() throws Exception {
+        var memory = mock(ChatMemoryService.class);
+        String polluted = "[2026-11-17T19:09:38Z] Маша (message=1, reply=null, bot=true):\nПривет!";
+        var outgoing = new ChatMessage(1, 1, null, null, null, "Маша", true,
+                "OUTGOING", null, "TEXT", polluted, Instant.ofEpochSecond(1), null);
+        when(memory.recent(1, null, 30)).thenReturn(List.of(outgoing));
+        var result = new ChatContextBuilder(memory, new MemoryProperties()).build(current());
+        var assistant = result.stream().filter(x -> x.role().equals("assistant")).findFirst().orElseThrow();
+        assertEquals("Привет!", assistant.content());
+    }
 }
