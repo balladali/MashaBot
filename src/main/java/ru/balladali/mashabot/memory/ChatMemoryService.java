@@ -1,6 +1,5 @@
 package ru.balladali.mashabot.memory;
 
-import org.flywaydb.core.Flyway;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
@@ -16,14 +15,42 @@ public class ChatMemoryService {
         this.p = p;
         p.validate();
         if (p.isEnabled()) {
-            var ds = new org.postgresql.ds.PGSimpleDataSource();
-            ds.setURL(p.getUrl());
-            ds.setUser(p.getUsername());
-            ds.setPassword(p.getPassword());
-            ds.setTcpNoDelay(true);
-            ds.setConnectTimeout(3);
-            ds.setSocketTimeout(5);
-            Flyway.configure().dataSource(ds).load().migrate();
+            try (var c = open();
+                    var q = c.createStatement();
+                    var rows =
+                            q.executeQuery(
+                                    "SELECT rolsuper,rolbypassrls,rolcreaterole,rolcreatedb FROM"
+                                        + " pg_roles WHERE rolname=current_user")) {
+                if (!rows.next()
+                        || rows.getBoolean(1)
+                        || rows.getBoolean(2)
+                        || rows.getBoolean(3)
+                        || rows.getBoolean(4))
+                    throw new IllegalStateException(
+                            "Memory runtime requires an unprivileged database role");
+            } catch (SQLException e) {
+                throw new IllegalStateException("Memory database validation failed", e);
+            }
+            try (var c = open();
+                    var q = c.createStatement();
+                    var rows =
+                            q.executeQuery(
+                                    "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON"
+                                        + " n.oid=c.relnamespace WHERE n.nspname='public' AND"
+                                        + " c.relname IN ('chat_messages','chat_memory_settings')"
+                                        + " AND c.relrowsecurity AND c.relforcerowsecurity AND"
+                                        + " c.relowner <> (SELECT oid FROM pg_roles WHERE"
+                                        + " rolname=current_user) AND NOT EXISTS (SELECT FROM"
+                                        + " pg_auth_members WHERE member=(SELECT oid FROM pg_roles"
+                                        + " WHERE rolname=current_user))")) {
+                rows.next();
+                if (rows.getInt(1) != 2)
+                    throw new IllegalStateException(
+                            "Memory tables require forced RLS and a separate owner; runtime role"
+                                + " must have no role memberships");
+            } catch (SQLException e) {
+                throw new IllegalStateException("Memory RLS validation failed", e);
+            }
         }
     }
 
@@ -40,6 +67,21 @@ public class ChatMemoryService {
         props.setProperty("socketTimeout", "5");
         props.setProperty("options", "-c statement_timeout=3000 -c lock_timeout=2000");
         return DriverManager.getConnection(p.getUrl(), props);
+    }
+
+    private Connection scoped(long chat) throws SQLException {
+        Connection c = open();
+        try {
+            c.setAutoCommit(false);
+            try (var q = c.prepareStatement("SELECT set_config('app.chat_id', ?, true)")) {
+                q.setString(1, Long.toString(chat));
+                q.execute();
+            }
+            return c;
+        } catch (SQLException e) {
+            c.close();
+            throw e;
+        }
     }
 
     private void lock(Connection c, long chat) throws SQLException {
@@ -63,15 +105,14 @@ public class ChatMemoryService {
 
     public String status(long chat) throws SQLException {
         if (!enabled()) return "Память отключена глобально.";
-        try (var c = open()) {
+        try (var c = scoped(chat)) {
             return "Чтение памяти включено. Сохранение: " + capture(c, chat);
         }
     }
 
     public void setCapture(long chat, boolean value) throws SQLException {
         if (!enabled()) return;
-        try (var c = open()) {
-            c.setAutoCommit(false);
+        try (var c = scoped(chat)) {
             lock(c, chat);
             try (var q =
                     c.prepareStatement(
@@ -101,8 +142,7 @@ public class ChatMemoryService {
 
     public void save(ChatMessage m) throws SQLException {
         if (!enabled()) return;
-        try (var c = open()) {
-            c.setAutoCommit(false);
+        try (var c = scoped(m.chatId())) {
             lock(c, m.chatId());
             if (!capture(c, m.chatId())) {
                 c.rollback();
@@ -163,7 +203,7 @@ WHERE excluded.edited_at IS NOT NULL AND excluded.edited_at > COALESCE(chat_mess
     public List<ChatMessage> recent(long chat, Long thread, int limit) throws SQLException {
         if (!enabled()) return List.of();
         if (limit < 1 || limit > 1000) throw new IllegalArgumentException("limit");
-        try (var c = open();
+        try (var c = scoped(chat);
                 var q =
                         c.prepareStatement(
                                 "SELECT * FROM chat_messages WHERE chat_id=? AND thread_id IS NOT"
@@ -182,7 +222,7 @@ WHERE excluded.edited_at IS NOT NULL AND excluded.edited_at > COALESCE(chat_mess
 
     public Optional<ChatMessage> find(long chat, long id) throws SQLException {
         if (!enabled()) return Optional.empty();
-        try (var c = open();
+        try (var c = scoped(chat);
                 var q =
                         c.prepareStatement(
                                 "SELECT * FROM chat_messages WHERE chat_id=? AND message_id=?")) {

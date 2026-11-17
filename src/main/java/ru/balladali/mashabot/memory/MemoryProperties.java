@@ -13,7 +13,7 @@ public class MemoryProperties {
     private Capture capture = new Capture();
     private Context context = new Context();
     private String url = "jdbc:postgresql://localhost:5432/masha";
-    private String username = "masha";
+    private String username = "masha_app";
     private String password = "";
 
     @Data

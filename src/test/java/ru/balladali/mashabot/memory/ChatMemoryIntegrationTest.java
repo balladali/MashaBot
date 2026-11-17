@@ -44,8 +44,13 @@ class ChatMemoryIntegrationTest {
         p = new MemoryProperties();
         p.getCapture().setDefaultChatEnabled(true); // These scenarios explicitly enable capture.
         p.setUrl(url);
-        p.setUsername(user);
-        p.setPassword(password);
+        p.setUsername("masha_app");
+        p.setPassword("test-runtime-only");
+        org.flywaydb.core.Flyway.configure().dataSource(url, user, password).load().migrate();
+        try (var c = java.sql.DriverManager.getConnection(url, user, password);
+                var q = c.createStatement()) {
+            q.execute("ALTER ROLE masha_app LOGIN PASSWORD 'test-runtime-only'");
+        }
         memory = new ChatMemoryService(p);
         try (var c = java.sql.DriverManager.getConnection(url, user, password);
                 var s = c.createStatement()) {
@@ -168,7 +173,7 @@ class ChatMemoryIntegrationTest {
                                     messages ->
                                             messages.size() == 5
                                                     && messages.get(2).content().contains("Казань")
-                                                    && messages.get(2)
+                                                    && messages.get(3)
                                                             .content()
                                                             .contains("Во сколько")),
                             org.mockito.ArgumentMatchers.eq(0.8),
@@ -193,5 +198,52 @@ class ChatMemoryIntegrationTest {
         org.mockito.Mockito.when(m.getText()).thenReturn(text);
         org.mockito.Mockito.when(m.getReplyToMessage()).thenReturn(reply);
         return m;
+    }
+
+    @Test
+    void databaseEnforcesScopeWithoutWhereAndRejectsForeignWrites() throws Exception {
+        memory.save(msg(1, 100, null, "Secret A", null));
+        memory.save(msg(2, 100, null, "Secret B", null));
+        memory.setCapture(1, true);
+        memory.setCapture(2, true);
+        try (var c = java.sql.DriverManager.getConnection(url, "masha_app", "test-runtime-only")) {
+            try (var q = c.createStatement();
+                    var rows = q.executeQuery("SELECT count(*) FROM chat_messages")) {
+                rows.next();
+                assertEquals(0, rows.getInt(1));
+            }
+            c.setAutoCommit(false);
+            try (var q = c.createStatement()) {
+                q.execute("SELECT set_config('app.chat_id','1',true)");
+                try (var rows = q.executeQuery("SELECT text_content FROM chat_messages")) {
+                    assertTrue(rows.next());
+                    assertEquals("Secret A", rows.getString(1));
+                    assertFalse(rows.next());
+                }
+                try (var rows = q.executeQuery("SELECT chat_id FROM chat_memory_settings")) {
+                    assertTrue(rows.next());
+                    assertEquals(1, rows.getLong(1));
+                    assertFalse(rows.next());
+                }
+                assertEquals(
+                        0,
+                        q.executeUpdate(
+                                "UPDATE chat_messages SET text_content='bad' WHERE chat_id=2"));
+                assertThrows(
+                        java.sql.SQLException.class,
+                        () ->
+                                q.executeUpdate(
+                                        "INSERT INTO chat_memory_settings(chat_id,capture_enabled)"
+                                            + " VALUES (3,true)"));
+                c.rollback();
+                try (var rows = q.executeQuery("SELECT count(*) FROM chat_messages")) {
+                    rows.next();
+                    assertEquals(0, rows.getInt(1));
+                }
+                c.rollback();
+                assertThrows(
+                        java.sql.SQLException.class, () -> q.execute("TRUNCATE chat_messages"));
+            }
+        }
     }
 }

@@ -428,3 +428,33 @@ Stage 2: добавить отдельные версионированные и
 поиска, сохранив обязательные chat_id/thread scope и политику capture; затем проверить
 качество hybrid ranking на тестовых диалогах. Outbox и устойчивую обработку updates
 следует проработать до обещаний exactly-once.
+
+
+### Обязательная RLS-изоляция (V2)
+
+Runtime подключается как masha_app (без SUPERUSER/BYPASSRLS/владения таблицами
+и членства в других ролях). Роли на каждый чат не создаются. Все чтения и записи
+идут в транзакции с параметризованным set_config('app.chat_id', chatId, true).
+Scope локален транзакции; после commit/rollback сбрасывается. Дополнительные WHERE
+chat_id сохранены. RLS USING/WITH CHECK и FORCE включены на обеих таблицах.
+Без scope чтение не возвращает строк, чужие записи запрещены. Runtime не имеет
+DELETE/TRUNCATE/DDL. При небезопасной роли или отсутствии FORCE RLS запуск прерывается.
+
+Это защита от ошибок SQL, не от захвата процесса: общий runtime-пользователь может
+сам задать другой scope. Значение всегда берётся приложением из Telegram update.
+
+Миграции больше не выполняются при старте бота. Compose запускает одноразовый
+memory-migrate с прежним административным пользователем masha; процесс не запускает
+Telegram/Spring. Он применяет Flyway и задаёт пароль masha_app из
+MEMORY_APP_DB_PASSWORD. Только migration-контейнер получает административный пароль
+MEMORY_DB_PASSWORD; бот получает его runtime-пароль как MEMORY_DB_PASSWORD.
+Оба значения задайте в защищённом .env. Для запуска без Compose сначала выполните
+java -Dloader.main=ru.balladali.mashabot.memory.MemoryMigrationMain -cp app.jar
+org.springframework.boot.loader.launch.PropertiesLauncher с административными
+MEMORY_DB_URL/USER/PASSWORD и MEMORY_APP_DB_PASSWORD; затем запускайте бот с
+MEMORY_DB_USER=masha_app и runtime-паролем. Старое описание автоматических миграций
+выше относится к V1 и заменено этим порядком.
+
+Миграция V2 сохраняет данные; перед применением нужен pg_dump и backup Compose/.env.
+Администратор-суперпользователь остаётся доступен только для миграций/обслуживания.
+Восстановление дампа или отключение RLS не требуется для обычного отката образа.

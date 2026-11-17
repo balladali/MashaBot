@@ -41,13 +41,28 @@ services:
     ports:
       - "8000:8000"
 
+  memory-migrate:
+    image: balladali/masha-bot:latest
+    restart: "no"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    entrypoint: ["java", "-Dloader.main=ru.balladali.mashabot.memory.MemoryMigrationMain", "-cp", "/app/app.jar", "org.springframework.boot.loader.launch.PropertiesLauncher"]
+    environment:
+      MEMORY_DB_URL: jdbc:postgresql://postgres:5432/masha
+      MEMORY_DB_USER: masha
+      MEMORY_DB_PASSWORD: ${MEMORY_DB_PASSWORD:?Set MEMORY_DB_PASSWORD}
+      MEMORY_APP_DB_PASSWORD: ${MEMORY_APP_DB_PASSWORD:?Set MEMORY_APP_DB_PASSWORD}
+
   masha-bot:
-    image: balladali/masha-bot:master
+    image: balladali/masha-bot:latest
     container_name: masha-bot
     restart: unless-stopped
     depends_on:
       yt-video-analyzer:
         condition: service_started
+      memory-migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
     ports:
@@ -55,8 +70,8 @@ services:
     environment:
       MEMORY_ENABLED: ${MEMORY_ENABLED:-true}
       MEMORY_DB_URL: jdbc:postgresql://postgres:5432/masha
-      MEMORY_DB_USER: masha
-      MEMORY_DB_PASSWORD: ${MEMORY_DB_PASSWORD:?Set MEMORY_DB_PASSWORD}
+      MEMORY_DB_USER: masha_app
+      MEMORY_DB_PASSWORD: ${MEMORY_APP_DB_PASSWORD:?Set MEMORY_APP_DB_PASSWORD}
       MEMORY_CAPTURE_ENABLED: ${MEMORY_CAPTURE_ENABLED:-true}
       MEMORY_DEFAULT_CHAT_ENABLED: ${MEMORY_DEFAULT_CHAT_ENABLED:-false}
       TG_BOT_TOKEN: ${TG_BOT_TOKEN}

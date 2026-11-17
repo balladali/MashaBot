@@ -58,7 +58,7 @@ masha:
 memory:
   enabled: ${MEMORY_ENABLED:true}
   url: ${MEMORY_DB_URL:jdbc:postgresql://localhost:5432/masha}
-  username: ${MEMORY_DB_USER:masha}
+  username: ${MEMORY_DB_USER:masha_app}
   password: ${MEMORY_DB_PASSWORD:}
   capture:
     enabled: ${MEMORY_CAPTURE_ENABLED:true}
